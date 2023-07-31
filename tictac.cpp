@@ -4,6 +4,9 @@
 #include <iostream>
 #include <stack>
 
+// TODO: fix game logic, buggy win condition
+// remove globals fix code
+// add undo condition
 
 Color TurnColors[] = {
     DARKGRAY, RED, GREEN
