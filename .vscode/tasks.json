@@ -1,0 +1,52 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cppbuild",
+			"label": "My windows build",
+			"command": "cl.exe",
+			"args": [
+				"/Zi",
+				"/EHsc",
+				"/MD",
+				"/nologo",
+				"${file}",
+				"raylib.lib",
+				"opengl32.lib",
+				"winmm.lib",
+				"gdi32.lib",
+				"shell32.lib",
+				"user32.lib",
+				"/Foobj\\",
+				"/Fdbuild\\",
+				"/Febuild/out.exe"
+				
+			],
+			"options": {
+				"cwd": "${fileDirname}"
+			},
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": {
+                "kind": "build",
+                "isDefault": true
+            },
+			"detail": "compiler: cl.exe"
+		},
+		{
+            "label": "My linux build",
+            "type": "shell",
+            "command": "g++ -g ${file} -lraylib -lGL -lm -lpthread -ldl -lrt -lX11",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                // "isDefault": true
+            },
+            "options": {
+                "cwd": "${workspaceFolder}/build"
+            },
+
+        }
+	]
+}
