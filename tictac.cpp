@@ -8,8 +8,6 @@
 // remove globals fix code
 // draw strike through after WIn
 
-
-
 enum Turn {
     FREE, LEFT, RIGHT
 };
@@ -49,12 +47,13 @@ struct Board  {
 
                 elements[i][j].reset({START_X + SIZE*i + PADDING*i, 
                                             START_Y + SIZE*j + PADDING*j, SIZE, SIZE});        
-                // elements[i][j].done = false;
-                // elements[i][j].turn = FREE;
             }
         }
     }
+    int u_cnt;
+    std::pair<int,int> undos[Board::GRID_SIZE*Board::GRID_SIZE];
     void reset() {
+        u_cnt = -1;
         GAME_OVER = false;
         currentTurn = LEFT;
         initElements();
@@ -62,6 +61,15 @@ struct Board  {
     }
     Board() {
         reset();
+    }
+    void undo () {
+        if (u_cnt > -1) {
+            ++remaining;
+            currentTurn = currentTurn == Turn::LEFT ? Turn::RIGHT : Turn::LEFT;
+            auto [li, lj] = undos[u_cnt--];
+            elements[li][lj].reset({Board::START_X + Board::SIZE*li + Board::PADDING*li, 
+                                    Board::START_Y + Board::SIZE*lj + Board::PADDING*lj, Board::SIZE, Board::SIZE});
+        }
     }
     
 };
@@ -74,6 +82,7 @@ bool Board::check (Turn turn, int i, int j) {
 }
 // generic win checker for all grid sizes
 void Board::checkWinner(int i, int j) {
+    undos[++u_cnt] = {i,j};
     auto turn = currentTurn;
     if ( 
         //  at center, horizontal,vectical lookup
@@ -103,9 +112,8 @@ void Board::checkWinner(int i, int j) {
 
 int main(void)
 {    
-    int u_cnt = -1;
-    std::pair<int,int> undos[9];
-    // for (int i = 0; i < 9; ++i) undos[i] = {}
+    
+    
     Board board;
 
     const int screenWidth = Board::START_X*2 + (Board::SIZE+Board::PADDING)*Board::GRID_SIZE;
@@ -138,17 +146,9 @@ int main(void)
                      board.reset();
                 }
             } else if (!undo_pressed && IsKeyDown(KEY_Z) && IsKeyDown(KEY_LEFT_CONTROL)) {
-                // std::copy(board, board + GRID_SIZE*GRID_SIZE, undostack.top());
-                // undostack.pop();
                 undo_pressed = true;
-                std::cerr << u_cnt << std::endl;
-                if (u_cnt > -1) {
-                    ++board.remaining;
-                    board.currentTurn = board.currentTurn == Turn::LEFT ? Turn::RIGHT : Turn::LEFT;
-                    auto [li, lj] = undos[u_cnt--];
-                    board.elements[li][lj].reset({Board::START_X + Board::SIZE*li + Board::PADDING*li, 
-                                            Board::START_Y + Board::SIZE*lj + Board::PADDING*lj, Board::SIZE, Board::SIZE});
-                }
+                board.undo();
+                
             } else {
                 DrawText(board.currentTurn == LEFT ? "Turn: LEFT" : "Turn: RIGHT", 10, 10, 20, WHITE);
             
@@ -164,24 +164,23 @@ int main(void)
                             if (!b.done) {
                                 if (board.currentTurn == LEFT && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                                     --board.remaining;
-                                    undos[++u_cnt] = {i,j};
+                                    
                                     b.done = true;
                                     b.turn = LEFT;
-                                    // undostack.push(board);
+                                    
                                     DrawTexture(xt, drawoffsetx, drawoffsety,  WHITE);
                                     board.checkWinner(i, j);
                                     board.currentTurn = RIGHT;
                                 } else if (board.currentTurn == RIGHT && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                                     --board.remaining;
-                                    undos[++u_cnt] = {i,j};
+                                    
                                     b.done = true;
                                     b.turn = RIGHT;
-                                    // undostack.push(board);
+                                    
                                     DrawTexture(ot, drawoffsetx, drawoffsety,  WHITE);
                                     board.checkWinner(i, j);
                                     board.currentTurn = LEFT;
                                 } else {
-                                    // DrawRectangleRounded(b.pos, ROUNDEDNESS, 1, GREEN);
                                     DrawTexture(board.currentTurn == LEFT ? xt : ot, drawoffsetx, drawoffsety,  WHITE);
                                 }
                             } else {
