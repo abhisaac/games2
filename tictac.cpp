@@ -4,31 +4,36 @@
 #include <iostream>
 #include <stack>
 
-// TODO: fix game logic, buggy win condition
+// TODO: 
 // remove globals fix code
-// add undo condition
+// draw strike through after WIn
 
-Color TurnColors[] = {
-    DARKGRAY, RED, GREEN
-};
+
 
 enum Turn {
     FREE, LEFT, RIGHT
 };
 
-struct Element {
-    Rectangle pos;
-    Turn turn;
-    bool done;
-};
-
-// board elements
-const float ROUNDEDNESS = 0.4f;
-const int SIZE = 80;
-const int PADDING = 10;
-const float START_X = 50.f, START_Y = 50.f;
 
 struct Board  {
+    // board elements
+    static inline const float ROUNDEDNESS = 0.4f;
+    static inline const float SIZE = 80.0f;
+    static const int PADDING = 10;
+    static inline const float START_X = 50.f, START_Y = 50.f;
+
+    struct Element {
+        Rectangle pos;
+        Turn turn;
+        bool done;
+        void reset (Rectangle pos1) {
+            pos = pos1; 
+            done = false;
+            turn = FREE;
+        }
+    };
+
+
     static const int GRID_SIZE = 3;
     Turn currentTurn;
     int remaining = GRID_SIZE*GRID_SIZE;
@@ -37,14 +42,15 @@ struct Board  {
     Element elements[GRID_SIZE][GRID_SIZE];
     
     bool check (Turn turn, int i, int j);
-    void checkWinner(Turn turn, int i, int j);
+    void checkWinner(int i, int j);
     void initElements() {
         for (int i = 0; i < GRID_SIZE; ++i) {
             for (int j = 0; j < GRID_SIZE; ++j) {
-                elements[i][j].pos = {START_X + SIZE*i + PADDING*i , 
-                                            START_Y + SIZE*j + PADDING*j, SIZE, SIZE};        
-                elements[i][j].done = false;
-                elements[i][j].turn = FREE;
+
+                elements[i][j].reset({START_X + SIZE*i + PADDING*i, 
+                                            START_Y + SIZE*j + PADDING*j, SIZE, SIZE});        
+                // elements[i][j].done = false;
+                // elements[i][j].turn = FREE;
             }
         }
     }
@@ -67,7 +73,8 @@ bool Board::check (Turn turn, int i, int j) {
     return elements[i][j].turn == currentTurn;
 }
 // generic win checker for all grid sizes
-void Board::checkWinner(Turn turn, int i, int j) {
+void Board::checkWinner(int i, int j) {
+    auto turn = currentTurn;
     if ( 
         //  at center, horizontal,vectical lookup
            (check(turn, i-1,j) && check(turn, i+1, j) )
@@ -96,10 +103,13 @@ void Board::checkWinner(Turn turn, int i, int j) {
 
 int main(void)
 {    
+    int u_cnt = -1;
+    std::pair<int,int> undos[9];
+    // for (int i = 0; i < 9; ++i) undos[i] = {}
     Board board;
 
-    const int screenWidth = START_X*2 + (SIZE+PADDING)*Board::GRID_SIZE;
-    const int screenHeight = START_Y*2 + (SIZE+PADDING)*Board::GRID_SIZE;
+    const int screenWidth = Board::START_X*2 + (Board::SIZE+Board::PADDING)*Board::GRID_SIZE;
+    const int screenHeight = Board::START_Y*2 + (Board::SIZE+Board::PADDING)*Board::GRID_SIZE;
 
     InitWindow(screenWidth, screenHeight, "!!! Tic Tac Toe");
 
@@ -107,14 +117,16 @@ int main(void)
 
     Texture2D xt = LoadTexture("x.png");   
     Texture2D ot = LoadTexture("o.png");   
-
+    bool undo_pressed = false;
     while (!WindowShouldClose())
     {
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
         BeginDrawing();
 
             ClearBackground(BLACK);
-            
+            if (IsKeyUp(KEY_Z) || IsKeyUp(KEY_LEFT_CONTROL))
+                undo_pressed = false;
+
             if (board.GAME_OVER) {
                 DrawText(board.WINNER == LEFT ? "LEFT WON" : "RIGHT WON", screenWidth/2 - 50, screenHeight/2, 20, WHITE);
                 if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
@@ -125,35 +137,49 @@ int main(void)
                 if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                      board.reset();
                 }
-            } else if (IsKeyDown(KEY_Z) && IsKeyDown(KEY_LEFT_CONTROL)) {
+            } else if (!undo_pressed && IsKeyDown(KEY_Z) && IsKeyDown(KEY_LEFT_CONTROL)) {
                 // std::copy(board, board + GRID_SIZE*GRID_SIZE, undostack.top());
                 // undostack.pop();
+                undo_pressed = true;
+                std::cerr << u_cnt << std::endl;
+                if (u_cnt > -1) {
+                    ++board.remaining;
+                    board.currentTurn = board.currentTurn == Turn::LEFT ? Turn::RIGHT : Turn::LEFT;
+                    auto [li, lj] = undos[u_cnt--];
+                    board.elements[li][lj].reset({Board::START_X + Board::SIZE*li + Board::PADDING*li, 
+                                            Board::START_Y + Board::SIZE*lj + Board::PADDING*lj, Board::SIZE, Board::SIZE});
+                }
             } else {
                 DrawText(board.currentTurn == LEFT ? "Turn: LEFT" : "Turn: RIGHT", 10, 10, 20, WHITE);
             
                 for (int i = 0; i < Board::GRID_SIZE; ++i) {
                     for (int j = 0; j < Board::GRID_SIZE; ++j) {
                         auto& b = board.elements[i][j];
-                        int drawoffsetx = START_X + SIZE*i + PADDING*i, drawoffsety = START_Y + SIZE*j + PADDING*j;
+
+                        int drawoffsetx = Board::START_X + Board::SIZE*i + Board::PADDING*i, 
+                            drawoffsety = Board::START_Y + Board::SIZE*j + Board::PADDING*j;
+                        
                         if (CheckCollisionPointRec(GetMousePosition(), b.pos)) {
                             Color c = LIGHTGRAY;
                             if (!b.done) {
                                 if (board.currentTurn == LEFT && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
                                     --board.remaining;
-                                    board.currentTurn = RIGHT;
+                                    undos[++u_cnt] = {i,j};
                                     b.done = true;
                                     b.turn = LEFT;
                                     // undostack.push(board);
                                     DrawTexture(xt, drawoffsetx, drawoffsety,  WHITE);
-                                    board.checkWinner(LEFT, i, j);
+                                    board.checkWinner(i, j);
+                                    board.currentTurn = RIGHT;
                                 } else if (board.currentTurn == RIGHT && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                                     --board.remaining;
-                                    board.currentTurn = LEFT;
+                                    undos[++u_cnt] = {i,j};
                                     b.done = true;
                                     b.turn = RIGHT;
                                     // undostack.push(board);
                                     DrawTexture(ot, drawoffsetx, drawoffsety,  WHITE);
-                                    board.checkWinner(RIGHT, i, j);
+                                    board.checkWinner(i, j);
+                                    board.currentTurn = LEFT;
                                 } else {
                                     // DrawRectangleRounded(b.pos, ROUNDEDNESS, 1, GREEN);
                                     DrawTexture(board.currentTurn == LEFT ? xt : ot, drawoffsetx, drawoffsety,  WHITE);
@@ -167,7 +193,7 @@ int main(void)
                             if (b.done) {
                                 DrawTexture(b.turn == LEFT ? xt : ot, drawoffsetx, drawoffsety,  WHITE);
                             } else {
-                                DrawRectangleRounded(b.pos, ROUNDEDNESS, 1, TurnColors[b.turn]);
+                                DrawRectangleRounded(b.pos, Board::ROUNDEDNESS, 1, DARKGRAY);
                             }
                             
                         } 

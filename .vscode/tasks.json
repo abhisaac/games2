@@ -10,6 +10,7 @@
 				"/EHsc",
 				"/MD",
 				"/nologo",
+				"/std:c++17",
 				"${file}",
 				"raylib.lib",
 				"opengl32.lib",
