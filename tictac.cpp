@@ -5,15 +5,14 @@
 #include <stack>
 
 // TODO: 
-// remove globals fix code
 // draw strike through after WIn
 
-enum Turn {
-    FREE, LEFT, RIGHT
-};
-
-
 struct Board  {
+    
+    enum Turn {
+        FREE, LEFT, RIGHT
+    };
+
     // board elements
     static inline const float ROUNDEDNESS = 0.4f;
     static inline const float SIZE = 80.0f;
@@ -52,6 +51,10 @@ struct Board  {
     }
     int u_cnt;
     std::pair<int,int> undos[Board::GRID_SIZE*Board::GRID_SIZE];
+
+    Texture2D xt;
+    Texture2D ot;
+
     void reset() {
         u_cnt = -1;
         GAME_OVER = false;
@@ -60,6 +63,8 @@ struct Board  {
         remaining = GRID_SIZE*GRID_SIZE;
     }
     Board() {
+        xt = LoadTexture("x.png"); 
+        ot = LoadTexture("o.png"); 
         reset();
     }
     void undo () {
@@ -71,7 +76,27 @@ struct Board  {
                                     Board::START_Y + Board::SIZE*lj + Board::PADDING*lj, Board::SIZE, Board::SIZE});
         }
     }
-    
+    void update(int i, int j) {
+        --remaining;
+        elements[i][j].done = true;
+        elements[i][j].turn = currentTurn;
+        draw(i, j);
+        checkWinner(i, j);
+        currentTurn = currentTurn  == LEFT ? RIGHT : LEFT;
+    }
+    void draw(int i, int j) {
+       draw(i, j, elements[i][j].turn);
+    }
+    void draw(int i, int j, Turn t) {
+         int drawoffsetx = Board::START_X + Board::SIZE*i + Board::PADDING*i, 
+                            drawoffsety = Board::START_Y + Board::SIZE*j + Board::PADDING*j;
+                        
+         DrawTexture(t == LEFT ? xt : ot, drawoffsetx, drawoffsety,  WHITE);
+    }
+    ~Board() {
+        UnloadTexture(xt); 
+        UnloadTexture(ot);
+    }
 };
 
 
@@ -112,31 +137,28 @@ void Board::checkWinner(int i, int j) {
 
 int main(void)
 {    
-    
-    
-    Board board;
-
     const int screenWidth = Board::START_X*2 + (Board::SIZE+Board::PADDING)*Board::GRID_SIZE;
     const int screenHeight = Board::START_Y*2 + (Board::SIZE+Board::PADDING)*Board::GRID_SIZE;
 
     InitWindow(screenWidth, screenHeight, "!!! Tic Tac Toe");
 
+    Board board;
+
     SetTargetFPS(60);
 
-    Texture2D xt = LoadTexture("x.png");   
-    Texture2D ot = LoadTexture("o.png");   
     bool undo_pressed = false;
     while (!WindowShouldClose())
     {
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
         BeginDrawing();
 
+// Game logic
             ClearBackground(BLACK);
             if (IsKeyUp(KEY_Z) || IsKeyUp(KEY_LEFT_CONTROL))
                 undo_pressed = false;
 
             if (board.GAME_OVER) {
-                DrawText(board.WINNER == LEFT ? "LEFT WON" : "RIGHT WON", screenWidth/2 - 50, screenHeight/2, 20, WHITE);
+                DrawText(board.WINNER == Board::LEFT ? "LEFT WON" : "RIGHT WON", screenWidth/2 - 50, screenHeight/2, 20, WHITE);
                 if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                     board.reset();
                 }
@@ -150,47 +172,29 @@ int main(void)
                 board.undo();
                 
             } else {
-                DrawText(board.currentTurn == LEFT ? "Turn: LEFT" : "Turn: RIGHT", 10, 10, 20, WHITE);
+                DrawText(board.currentTurn == Board::LEFT ? "Turn: LEFT" : "Turn: RIGHT", 10, 10, 20, WHITE);
             
                 for (int i = 0; i < Board::GRID_SIZE; ++i) {
                     for (int j = 0; j < Board::GRID_SIZE; ++j) {
                         auto& b = board.elements[i][j];
-
-                        int drawoffsetx = Board::START_X + Board::SIZE*i + Board::PADDING*i, 
-                            drawoffsety = Board::START_Y + Board::SIZE*j + Board::PADDING*j;
                         
                         if (CheckCollisionPointRec(GetMousePosition(), b.pos)) {
                             Color c = LIGHTGRAY;
                             if (!b.done) {
-                                if (board.currentTurn == LEFT && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-                                    --board.remaining;
-                                    
-                                    b.done = true;
-                                    b.turn = LEFT;
-                                    
-                                    DrawTexture(xt, drawoffsetx, drawoffsety,  WHITE);
-                                    board.checkWinner(i, j);
-                                    board.currentTurn = RIGHT;
-                                } else if (board.currentTurn == RIGHT && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-                                    --board.remaining;
-                                    
-                                    b.done = true;
-                                    b.turn = RIGHT;
-                                    
-                                    DrawTexture(ot, drawoffsetx, drawoffsety,  WHITE);
-                                    board.checkWinner(i, j);
-                                    board.currentTurn = LEFT;
-                                } else {
-                                    DrawTexture(board.currentTurn == LEFT ? xt : ot, drawoffsetx, drawoffsety,  WHITE);
+                                if (board.currentTurn == Board::LEFT && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                                    board.update(i, j);
+                                } else if (board.currentTurn == Board::RIGHT && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+                                    board.update(i, j);
+                                } 
+                                else { // draw temp overlay
+                                    board.draw(i, j, board.currentTurn);
                                 }
                             } else {
-                                DrawTexture(b.turn == LEFT ? xt : ot, drawoffsetx, drawoffsety,  WHITE);
+                                board.draw(i, j);
                             }
-
-                                
                         } else {
                             if (b.done) {
-                                DrawTexture(b.turn == LEFT ? xt : ot, drawoffsetx, drawoffsety,  WHITE);
+                                board.draw(i, j);
                             } else {
                                 DrawRectangleRounded(b.pos, Board::ROUNDEDNESS, 1, DARKGRAY);
                             }
@@ -202,8 +206,7 @@ int main(void)
         EndDrawing();
 
     }
-    UnloadTexture(xt); 
-    UnloadTexture(ot);
+    
     CloseWindow();
     return 0;
 }
