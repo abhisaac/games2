@@ -93,6 +93,7 @@ struct Board  {
                         
          DrawTexture(t == LEFT ? xt : ot, drawoffsetx, drawoffsety,  WHITE);
     }
+
     ~Board() {
         UnloadTexture(xt); 
         UnloadTexture(ot);
@@ -142,6 +143,7 @@ int main(void)
 
     InitWindow(screenWidth, screenHeight, "!!! Tic Tac Toe");
 
+    {
     Board board;
 
     SetTargetFPS(60);
@@ -152,60 +154,62 @@ int main(void)
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
         BeginDrawing();
 
-// Game logic
-            ClearBackground(BLACK);
-            if (IsKeyUp(KEY_Z) || IsKeyUp(KEY_LEFT_CONTROL))
-                undo_pressed = false;
+        // Game logic
+        ClearBackground(BLACK);
+        if (IsKeyUp(KEY_Z) || IsKeyUp(KEY_LEFT_CONTROL))
+            undo_pressed = false;
 
-            if (board.GAME_OVER) {
-                DrawText(board.WINNER == Board::LEFT ? "LEFT WON" : "RIGHT WON", screenWidth/2 - 50, screenHeight/2, 20, WHITE);
-                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+        if (board.GAME_OVER) {
+            DrawText(board.WINNER == Board::LEFT ? "LEFT WON" : "RIGHT WON", screenWidth/2 - 50, screenHeight/2, 20, WHITE);
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+                board.reset();
+            }
+        } else if (board.remaining == 0) {
+            DrawText("It's a DRAW", screenWidth/2 - 50, screenHeight/2, 20, WHITE);
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                     board.reset();
-                }
-            } else if (board.remaining == 0) {
-                DrawText("It's a DRAW", screenWidth/2 - 50, screenHeight/2, 20, WHITE);
-                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-                     board.reset();
-                }
-            } else if (!undo_pressed && IsKeyDown(KEY_Z) && IsKeyDown(KEY_LEFT_CONTROL)) {
-                undo_pressed = true;
-                board.undo();
-                
-            } else {
-                DrawText(board.currentTurn == Board::LEFT ? "Turn: LEFT" : "Turn: RIGHT", 10, 10, 20, WHITE);
+            }
+        } else if (!undo_pressed && IsKeyDown(KEY_Z) && IsKeyDown(KEY_LEFT_CONTROL)) {
+            undo_pressed = true;
+            board.undo();
             
-                for (int i = 0; i < Board::GRID_SIZE; ++i) {
-                    for (int j = 0; j < Board::GRID_SIZE; ++j) {
-                        auto& b = board.elements[i][j];
-                        
-                        if (CheckCollisionPointRec(GetMousePosition(), b.pos)) {
-                            Color c = LIGHTGRAY;
-                            if (!b.done) {
-                                if (board.currentTurn == Board::LEFT && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-                                    board.update(i, j);
-                                } else if (board.currentTurn == Board::RIGHT && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-                                    board.update(i, j);
-                                } 
-                                else { // draw temp overlay
-                                    board.draw(i, j, board.currentTurn);
-                                }
-                            } else {
-                                board.draw(i, j);
+        } else {
+            DrawText(board.currentTurn == Board::LEFT ? "Turn: LEFT" : "Turn: RIGHT", 10, 10, 20, WHITE);
+        
+            for (int i = 0; i < Board::GRID_SIZE; ++i) {
+                for (int j = 0; j < Board::GRID_SIZE; ++j) {
+                    auto& b = board.elements[i][j];
+                    
+                    if (CheckCollisionPointRec(GetMousePosition(), b.pos)) {
+                        Color c = LIGHTGRAY;
+                        if (!b.done) {
+                            if (board.currentTurn == Board::LEFT && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                                board.update(i, j);
+                            } else if (board.currentTurn == Board::RIGHT && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+                                board.update(i, j);
+                            } 
+                            else { // draw temp overlay
+                                board.draw(i, j, board.currentTurn);
                             }
                         } else {
-                            if (b.done) {
-                                board.draw(i, j);
-                            } else {
-                                DrawRectangleRounded(b.pos, Board::ROUNDEDNESS, 1, DARKGRAY);
-                            }
-                            
-                        } 
-                    }
+                            board.draw(i, j);
+                        }
+                    } else {
+                        if (b.done) {
+                            board.draw(i, j);
+                        } else {
+                            DrawRectangleRounded(b.pos, Board::ROUNDEDNESS, 1, DARKGRAY);
+                        }
+                        
+                    } 
                 }
             }
+        }
+
         EndDrawing();
 
     }
+    }//Board ends
     
     CloseWindow();
     return 0;
