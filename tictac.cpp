@@ -4,9 +4,6 @@
 #include <iostream>
 #include <stack>
 
-// TODO: 
-// draw strike through after WIn
-
 struct Board  {
     
     enum Turn {
@@ -98,6 +95,18 @@ struct Board  {
         UnloadTexture(xt); 
         UnloadTexture(ot);
     }
+    Vector2 Winstart, Winend;
+    bool drawWinStrike (int si, int sj, int di, int dj) {
+        auto sfi = Board::START_X + Board::SIZE*si + Board::PADDING*si + SIZE/2.0f;
+        auto dfi = Board::START_X + Board::SIZE*di + Board::PADDING*di + SIZE/2.0f;
+
+        auto sfj = Board::START_Y + Board::SIZE*sj + Board::PADDING*sj + SIZE/2.0f;
+        auto dfj = Board::START_Y + Board::SIZE*dj + Board::PADDING*dj + SIZE/2.0f;
+
+        Winstart = {sfi, sfj};
+        Winend = {dfi, dfj};
+        return true;
+    }   
 };
 
 
@@ -106,29 +115,31 @@ bool Board::check (Turn turn, int i, int j) {
     if (j >= GRID_SIZE || j < 0) return false;
     return elements[i][j].turn == currentTurn;
 }
+
+
 // generic win checker for all grid sizes
 void Board::checkWinner(int i, int j) {
     undos[++u_cnt] = {i,j};
     auto turn = currentTurn;
     if ( 
         //  at center, horizontal,vectical lookup
-           (check(turn, i-1,j) && check(turn, i+1, j) )
-        || (check(turn, i,j-1) && check(turn, i, j+1) )
+           (check(turn, i-1,j) && check(turn, i+1, j) && drawWinStrike (i-1,j,i+1,j))
+        || (check(turn, i,j-1) && check(turn, i, j+1) && drawWinStrike (i,j-1,i,j+1))
         //  at center diagonal lookup
-        || (check(turn, i-1,j-1) && check(turn, i+1, j+1) )
-        || (check(turn, i-1,j+1) && check(turn, i+1, j-1) )
+        || (check(turn, i-1,j-1) && check(turn, i+1, j+1) && drawWinStrike (i-1,j-1,i+1,j+1))
+        || (check(turn, i-1,j+1) && check(turn, i+1, j-1) && drawWinStrike (i-1,j+1,i+1,j-1))
         // corner, horizontal lookup
-        || (check(turn, i+1,j) && check(turn, i+2, j) )
-        || (check(turn, i-1,j) && check(turn, i-2, j) )
+        || (check(turn, i+1,j) && check(turn, i+2, j) && drawWinStrike (i,j,i+2,j))
+        || (check(turn, i-1,j) && check(turn, i-2, j) && drawWinStrike (i,j,i-2,j))
         // corner, vertical lookup
-        || (check(turn, i,j-1) && check(turn, i, j-2) )
-        || (check(turn, i,j+1) && check(turn, i, j+2))
+        || (check(turn, i,j-1) && check(turn, i, j-2) && drawWinStrike (i,j,i,j-2))
+        || (check(turn, i,j+1) && check(turn, i, j+2)&& drawWinStrike (i,j,i,j+2))
         // corner, primary diagnal
-        || (check(turn, i+1,j+1) && check(turn, i+2, j+2))
-        || (check(turn, i-1,j-1) && check(turn, i-2, j-2) )
+        || (check(turn, i+1,j+1) && check(turn, i+2, j+2)&& drawWinStrike (i,j,i+2,j+2))
+        || (check(turn, i-1,j-1) && check(turn, i-2, j-2) && drawWinStrike (i,j,i-2,j-2))
         // corner, other diagonal
-        || (check(turn, i+1,j-1) && check(turn, i+2, j-2) )
-        || (check(turn, i-1,j+1) && check(turn, i-2, j+2) )
+        || (check(turn, i+1,j-1) && check(turn, i+2, j-2) && drawWinStrike (i,j,i+2,j-2))
+        || (check(turn, i-1,j+1) && check(turn, i-2, j+2) && drawWinStrike (i,j,i-2,j+2))
         ) {
             WINNER = turn;
             GAME_OVER = true;
@@ -160,7 +171,17 @@ int main(void)
             undo_pressed = false;
 
         if (board.GAME_OVER) {
-            DrawText(board.WINNER == Board::LEFT ? "LEFT WON" : "RIGHT WON", screenWidth/2 - 50, screenHeight/2, 20, WHITE);
+            for (int i = 0; i < Board::GRID_SIZE; ++i) {
+                for (int j = 0; j < Board::GRID_SIZE; ++j) {
+                    if (board.elements[i][j].done) {
+                        board.draw(i, j);
+                    } else {
+                        DrawRectangleRounded(board.elements[i][j].pos, Board::ROUNDEDNESS, 1, DARKGRAY);
+                    }
+                }
+            }
+            DrawLineEx({board.Winstart.x, board.Winstart.y}, {board.Winend.x, board.Winend.y} , 10.0f, WHITE); 
+            DrawText(board.WINNER == Board::LEFT ? "LEFT WON" : "RIGHT WON", 10, 10, 20, WHITE);
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                 board.reset();
             }
