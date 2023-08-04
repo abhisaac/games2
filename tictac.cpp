@@ -1,8 +1,14 @@
-
+/* TIC TAC TOE: 
+        classic game, 
+        use mouse left,right clicks to play
+        CTRL + Z to undo a move. 
+        Enjoy!
+*/
 #include "raylib.h"
-#include <vector>
-#include <iostream>
-#include <stack>
+
+struct Pointi {
+    int i, j;
+};
 
 struct Board  {
     
@@ -47,7 +53,7 @@ struct Board  {
         }
     }
     int u_cnt;
-    std::pair<int,int> undos[Board::GRID_SIZE*Board::GRID_SIZE];
+    Pointi undos[Board::GRID_SIZE*Board::GRID_SIZE];
 
     Texture2D xt;
     Texture2D ot;
@@ -180,7 +186,8 @@ int main(void)
                     }
                 }
             }
-            DrawLineEx({board.Winstart.x, board.Winstart.y}, {board.Winend.x, board.Winend.y} , 10.0f, WHITE); 
+            DrawLineBezier({board.Winstart.x, board.Winstart.y}, {board.Winend.x, board.Winend.y} , 10.0f, WHITE); 
+            // DrawLineEx({board.Winstart.x, board.Winstart.y}, {board.Winend.x, board.Winend.y} , 10.0f, WHITE); 
             DrawText(board.WINNER == Board::LEFT ? "LEFT WON" : "RIGHT WON", 10, 10, 20, WHITE);
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
                 board.reset();
