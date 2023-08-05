@@ -5,13 +5,13 @@
 TODOs
 1. 
 2. texture
-3. explosion
+3. 
 */
 
 #include "raylib.h"
-#include <iostrseam>
-#include <vectors>
-struct GameConstassss nts {
+#include <iostream>
+#include <vector>
+struct GameConstants {
   inline static const float SIZEX = 800.f;
   inline static const float SIZEY = 450.f;
   inline static const float DELTA = 1.4f;
@@ -61,17 +61,38 @@ struct Sprite
 };
 long long cnt = 0L;
 struct Enemy {
-  Enemy(Texture2D& sp, Vector2 pos) : sp(sp), pos(pos), delta(randDelta())
+  Enemy(Texture2D& sp, Vector2 pos) : 
+        sp(sp), pos(pos), delta(randDelta()), destroyed(false), offset(0.f),
+        size(1.f)
   {
     // puts("EE");
   }
   void draw()
   {
-    DrawTexture(sp, pos.x, pos.y, WHITE);
+    if (destroyed) {
+      offset += 1.4f;
+      size -= 0.02f;
+      // DrawCircle(pos.x - offset*2.f, pos.y - offset, size, GREEN);
+      // DrawCircl e(pos.x - offset, pos.y + offset, size, GREEN);
+      // DrawCircle(pos.x + offset, pos.y, size, GREEN);
+      if (size > 0.f) {
+        DrawTextureEx(sp, {pos.x - offset*2.f, pos.y- offset}, -offset, size, WHITE);
+      DrawTextureEx(sp, {pos.x - offset, pos.y}, offset, size, WHITE);
+      DrawTextureEx(sp, {pos.x + offset, pos.y}, -offset, size, WHITE);  
+      } else {
+        reset();
+      }
+      
+    } else {
+      DrawTexture(sp, pos.x, pos.y, WHITE);
+    }
   }
   void reset() {
     pos = randPosition();
           delta = randDelta(); 
+    offset = 0.f;
+    destroyed = false;
+    size = 1.f;
   }
   void update() {
     pos.x += delta.x;
@@ -86,6 +107,9 @@ struct Enemy {
   Texture2D sp;
   Vector2 pos;
   Vector2 delta;
+  bool destroyed;
+  float offset;
+  float size;
 };
 
  int b_idx = 0;
@@ -112,7 +136,7 @@ int main()
   long long int elapsed = 0;
   
   InitWindow(GameConstants::SIZEX, GameConstants::SIZEY, "!! Asteroids");
-  Texture2D enemyTex = LoadTexture("o.png");
+  Texture2D enemyTex = LoadTexture("e.png");
   SetTargetFPS(60);
   
   // Enemies
@@ -157,7 +181,7 @@ int main()
         for (auto& e : badguys) {
           e.draw();
           e.update();
-          if (CheckCollisionRecs({e.pos.x, e.pos.y, 80.f, 80.f},
+          if (!e.destroyed && CheckCollisionRecs({e.pos.x, e.pos.y, 24.f, 24.f},
                                  {ship.pos.x, ship.pos.y, 70.f, 70.f})) {
             gameover = true;
           }
@@ -186,7 +210,8 @@ int main()
               if (CheckCollisionPointRec(bullets[i].pos, 
                 {e.pos.x, e.pos.y, 80.f, 80.f})) {
                   ++cnt;
-                  e.reset();
+                  // e.reset();
+                  e.destroyed = true;
                   bullets[i].valid = false;
               }
             }
