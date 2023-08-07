@@ -14,20 +14,20 @@ TODOs
 struct GameConstants {
   inline static const float SIZEX = 600.f;
   inline static const float SIZEY = 750.f;
-  inline static const float DELTA = 0.4f;
-  inline static const float DELTA1 = 3.4f;
+  inline static const float DELTAX = 0.4f;
+  inline static const float DELTAY = 3.4f;
 };
 
 Vector2 randDelta() {
-  return { rand()%2 ? -GameConstants::DELTA : GameConstants::DELTA,
-           GameConstants::DELTA1};
+  return { rand()%2 ? -GameConstants::DELTAX : GameConstants::DELTAX,
+           GameConstants::DELTAY};
   // return {(float)rand()*GameConstants::DELTA/ (float)(RAND_MAX) - GameConstants::DELTA, 
   //         (float)rand()*GameConstants::DELTA/ (float)(RAND_MAX) - GameConstants::DELTA};
 }
 Vector2 randPosition() {
   // respawn at the top 1/8th of the window
-  return {(float)rand()*GameConstants::SIZEX/ (float)(RAND_MAX),  
-          (float)rand()*GameConstants::SIZEY/ (float)(16.0f * RAND_MAX)};
+  return {(float)rand()*GameConstants::SIZEX/ (float)(RAND_MAX),  0};
+          // (float)rand()*GameConstants::SIZEY/ (float)(16.0f * RAND_MAX)};
 }
 
 // SHIP
