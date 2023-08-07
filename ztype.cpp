@@ -7,6 +7,7 @@
 #include <deque>
 #include <queue>
 #include <set>
+#include <iterator>
 const int W = 600;
 const int H = 750;
 
