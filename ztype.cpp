@@ -13,8 +13,7 @@ const int H = 750;
 
 /*TODOs
 1. levels
-2. score
-3. */
+2. */
 
 std::vector<std::string> loadFile(std::string fileName) {
     std::ifstream file(fileName);
@@ -83,6 +82,7 @@ struct Game {
     void reset() {
         addTarget();
         b_pos = 0;
+        score = 0;
     }
     
     void processInput() {
@@ -97,7 +97,9 @@ struct Game {
             if (b_pos > BULLETS_SIZE-1) b_pos = 0;
             
             if (w.size() == targets.front().y) {
+                score += targets.front().word.size();
                 targets.pop_front();
+                
             } 
         }
     }
@@ -131,6 +133,7 @@ struct Game {
     static const int BULLETS_SIZE = 100;
     Bullet bullets[BULLETS_SIZE];
     static bool gameOver;
+    int score;
 };
 bool Game::gameOver = false;
 int main(){
@@ -153,7 +156,9 @@ int main(){
             C = 0;
         }
     } else {
-        
+        char sc[20];
+        sprintf(sc, "SCORE %d", g.score);
+        DrawText(sc, 10, 10, 20, WHITE);
         if (++C % (69 + g.targets.front().word.size()*17) == 0) g.addTarget();
         g.processInput();
         ClearBackground(BLACK);

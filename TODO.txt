@@ -1,10 +1,10 @@
-* ztype
+* ztype [DONE]
 * 2d pacman
 * 2d platformer
 * 2d jumping game
 * 2d cross the road game
 * 2d sokoban
 * 2d fruit ninja
-* 3d camera
+* 3d camera FPS [doing...]
 * 3d duck hunt
 

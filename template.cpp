@@ -1,7 +1,9 @@
 
 #include "raylib.h"
+const int W = 800;
+const int H = 600;
 int main(){
-  InitWindow(800, 450, "raylib [core] example - basic window");
+  InitWindow(W, H, "raylib [core] example - basic window");
   SetTargetFPS(60);
   while (!WindowShouldClose()){
     
