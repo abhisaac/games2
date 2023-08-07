@@ -24,29 +24,16 @@ std::vector<std::string> loadFile(std::string fileName) {
 
 struct Game {
     
-    struct TargetHitCircle {
-        Vector2 pos;
-        int valid;
-        void draw() {
-            if (valid)
-                DrawCircle(pos.x, pos.y, 4.0f, WHITE);
-        }
-        void update() {
-            pos.y +=0.4f;
-        }
-    };
 
     struct Bullet {
         Vector2 pos;
         bool valid;
-        // int hit_idx;
         Bullet () {
             reset();
         }
         void reset() {
             pos = {W/2.f, H/1.f};
             valid = false;
-            // hit_idx = 0;
         }
     };
 
@@ -63,9 +50,11 @@ struct Game {
             done = false;
         }
         void update() {
-            pos.y +=0.4f;
+            pos.y +=.7f;
+            if (pos.y > H) Game::gameOver = true;
         }
         void draw() {
+            DrawCircle(pos.x, pos.y-10.f, 4.0f, WHITE);
             DrawText((spaces.substr(0, y) + word.substr(y)).c_str(), 
                         pos.x, pos.y, 20, GOLD);
         }
@@ -86,8 +75,6 @@ struct Game {
         std::size_t sample = uid(rng);
         
         targets.emplace_back(words[sample]);
-        // hits[h_idx++].pos = targets.front().pos;
-        // hits[h_idx].valid = words[sample].size();
     }
     void reset() {
         addTarget();
@@ -100,7 +87,8 @@ struct Game {
         if ((key-65) == w[targets.front().y]-'a') {
             targets.front().y++; // = y;
             bullets[b_pos++].valid = true;
-            // bullets[b_pos].hit_idx = h_idx;
+            if (b_pos > 99) b_pos = 0;
+            
             if (w.size() == targets.front().y) {
                 targets.pop_front();
             } 
@@ -108,51 +96,63 @@ struct Game {
     }
     void update () {
         for (auto& t : targets) t.update();
-        // for (auto& h : hits) h.update();
         
         for (int i = 0; i < 100; ++i) {
             auto& b = bullets[i];
             if (b.valid) {
-                b.pos = Vector2MoveTowards(b.pos, targets.front().pos, 29.f);
+                
+                b.pos = Vector2MoveTowards(b.pos, targets.front().pos, 19.f);
                 DrawCircle(b.pos.x, b.pos.y, 6.f, RED);
                 if (CheckCollisionPointCircle(b.pos, targets.front().pos, 4.0f)) {
-                    bullets[b_pos--].valid = false;
+                    b.valid = false;
                 }
-            } else {
-                b.reset();
-            }
+            } 
+            
         }
     }
     void draw() {
+        DrawText(targets.front().word.c_str(), 10, 10, 20, RED);
         for (auto& t : targets) t.draw();
-        // for (auto& h : hits) h.draw();
     }
 
-    // TargetHitCircle hits[100];
+    
     int h_idx = 0;
     std::vector<std::string> words;
     std::deque<Target> targets;
-    // Vector2 pos; 
+    
     int b_pos;
     Bullet bullets[100];
-    
+    static bool gameOver;
 };
-
+bool Game::gameOver = false;
 int main(){
   srand(time(0));
   InitWindow(W, H, "!! Ztype");
   SetTargetFPS(60);
   Game g;
-  float pos = 1.1f;
+  
   long long int C = 0;
   while (!WindowShouldClose()){
-    
     BeginDrawing();
-    if (++C % 99 == 0) g.addTarget();
-    g.processInput();
-    ClearBackground(BLACK);
-    g.update();
-    g.draw();
+    if (g.gameOver) {
+        DrawText("GAME OVER", W/3 - 20, W/2, 40, WHITE);
+        DrawText("Press S to start", W/3 - 20, H/2 + 50, 20, WHITE);
+        if (IsKeyDown(KEY_S)) {
+            g.gameOver = false;
+           
+            g.targets.clear();
+             g.reset();
+            C = 0;
+        }
+    } else {
+        
+        if (++C % 99 == 0) g.addTarget();
+        g.processInput();
+        ClearBackground(BLACK);
+        g.update();
+        g.draw();
+        
+    }
     EndDrawing();
   }
 
