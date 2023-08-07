@@ -6,8 +6,14 @@
 #include <fstream>
 #include <deque>
 #include <queue>
+#include <set>
 const int W = 600;
 const int H = 750;
+
+/*TODOs
+1. levels
+2. score
+3. */
 
 std::vector<std::string> loadFile(std::string fileName) {
     std::ifstream file(fileName);
@@ -21,12 +27,10 @@ std::vector<std::string> loadFile(std::string fileName) {
     return fileContents;
 }
 
-
 struct Game {
-    
-
     struct Bullet {
         Vector2 pos;
+        Vector2 target;
         bool valid;
         Bullet () {
             reset();
@@ -54,14 +58,13 @@ struct Game {
             if (pos.y > H) Game::gameOver = true;
         }
         void draw() {
-            DrawCircle(pos.x, pos.y-10.f, 4.0f, WHITE);
+            DrawCircle(pos.x, pos.y - 10.f, 4.0f, WHITE);
             DrawText((spaces.substr(0, y) + word.substr(y)).c_str(), 
                         pos.x, pos.y, 20, GOLD);
         }
     };
     Game() {
-        h_idx = 0;
-        b_pos = 0;
+        
         readWords();
         reset();
     }
@@ -78,6 +81,7 @@ struct Game {
     }
     void reset() {
         addTarget();
+        b_pos = 0;
     }
     
     void processInput() {
@@ -86,8 +90,10 @@ struct Game {
         auto w = targets.front().word;
         if ((key-65) == w[targets.front().y]-'a') {
             targets.front().y++; // = y;
-            bullets[b_pos++].valid = true;
-            if (b_pos > 99) b_pos = 0;
+            bullets[b_pos++].reset();
+            bullets[b_pos].valid = true;
+            bullets[b_pos].target = {targets.front().pos.x, targets.front().pos.y - 10.f};
+            if (b_pos > BULLETS_SIZE-1) b_pos = 0;
             
             if (w.size() == targets.front().y) {
                 targets.pop_front();
@@ -96,32 +102,33 @@ struct Game {
     }
     void update () {
         for (auto& t : targets) t.update();
-        
-        for (int i = 0; i < 100; ++i) {
+        std::set<std::pair<float,float>> targetcircs;
+        for (int i = 0; i < BULLETS_SIZE; ++i) {
             auto& b = bullets[i];
             if (b.valid) {
-                
-                b.pos = Vector2MoveTowards(b.pos, targets.front().pos, 19.f);
+                b.pos = Vector2MoveTowards(b.pos, b.target, 19.f);
                 DrawCircle(b.pos.x, b.pos.y, 6.f, RED);
-                if (CheckCollisionPointCircle(b.pos, targets.front().pos, 4.0f)) {
+                targetcircs.insert({b.target.x, b.target.y});
+                if (CheckCollisionPointCircle(b.pos, b.target, 4.0f)) {
                     b.valid = false;
                 }
-            } 
-            
+            }
         }
+        for(auto& t : targetcircs) DrawCircle(t.first, t.second, 4.0f, WHITE);
+        
     }
     void draw() {
-        DrawText(targets.front().word.c_str(), 10, 10, 20, RED);
+        // DrawText(targets.front().word.c_str(), 10, 10, 20, RED); // debug
         for (auto& t : targets) t.draw();
     }
 
     
-    int h_idx = 0;
     std::vector<std::string> words;
     std::deque<Target> targets;
     
     int b_pos;
-    Bullet bullets[100];
+    static const int BULLETS_SIZE = 100;
+    Bullet bullets[BULLETS_SIZE];
     static bool gameOver;
 };
 bool Game::gameOver = false;
@@ -146,7 +153,7 @@ int main(){
         }
     } else {
         
-        if (++C % 99 == 0) g.addTarget();
+        if (++C % (69 + g.targets.front().word.size()*17) == 0) g.addTarget();
         g.processInput();
         ClearBackground(BLACK);
         g.update();
