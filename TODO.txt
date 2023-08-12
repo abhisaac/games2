@@ -1,10 +1,14 @@
 * ztype [DONE]
+* music visualizer
 * 2d pacman
 * 2d platformer
 * 2d jumping game
 * 2d cross the road game
 * 2d sokoban
 * 2d fruit ninja
-* 3d camera FPS [doing...]
+* 3d camera FPS
 * 3d duck hunt
-
+* paint ...
+* shaders
+* opengl Win32
+* 

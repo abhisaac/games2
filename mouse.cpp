@@ -1,5 +1,6 @@
 
 #include "raylib.h"
+#include <vector>
 int main2(){
   InitWindow(800, 450, "raylib [core] example - basic window");
 
@@ -18,9 +19,6 @@ int main2(){
   return 0;
 }
 
-
-
-
 //------------------------------------------------------------------------------------
 // Program main entry point
 //------------------------------------------------------------------------------------
@@ -31,13 +29,13 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - keyboard input");
+    InitWindow(screenWidth, screenHeight, "!! Paint");
 
     Vector2 ballPosition = { (float)screenWidth/2, (float)screenHeight/2 };
 
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
-
+    std::vector<Vector2> pos;
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
@@ -55,9 +53,20 @@ int main(void)
 
             ClearBackground(RAYWHITE);
 
-            DrawText("move the ball with arrow keys", 10, 10, 20, DARKGRAY);
+            // DrawText("move the ball with arrow keys", 10, 10, 20, DARKGRAY);
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) pos.emplace_back(GetMousePosition());
+            if (IsMouseButtonUp(MOUSE_BUTTON_LEFT)) pos.clear();
+            bool first = true;
+            Vector2 last;
 
-            DrawCircleV(GetMousePosition(), 50, MAROON);
+            for(auto&p : pos) {
+              if (first){first = !first; last = p;continue;}
+              
+              DrawLineBezier(last, p, 3, MAROON);
+              last = p;
+              // DrawCircleV(p, 3, MAROON);
+            }
+              
 
         EndDrawing();
         //----------------------------------------------------------------------------------
