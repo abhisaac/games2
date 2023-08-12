@@ -2,6 +2,7 @@
 #include "raylib.h"
 #include <vector>
 #include <set>
+#include <iostream>
 
 enum SHAPE {
     RECTANGLE,
@@ -25,7 +26,20 @@ struct ShapePicker {
         Rectangle rect;
         SHAPE shape;
     } current;
-    
+    int idx = 0;
+    void prev() {
+        if (idx == 0) idx = N-1;
+        else --idx;
+        updateCurrent(idx);
+    }
+    void next(){
+        updateCurrent( (idx+1)%N);
+    }
+    void updateCurrent(int i) {
+        idx = i;
+        current.rect = rect[i];
+        current.shape = (SHAPE)i;
+    }
     ShapePicker()  {
         current.rect = rect[0];
         current.shape = RECTANGLE;
@@ -66,7 +80,17 @@ struct ColorPicker {
         Rectangle rect;
         Color color;
     } current;
+
+    int idx = 0;
+    void updateCurrent(int i) { 
+        idx = i; 
+        current.color = color[i];
+        current.rect = rect[i];
+    }
     
+    void next() {
+        updateCurrent((idx+1)%N);
+    }
     ColorPicker() : current({rect[0], color[0]}) {}
     void draw(){
         for (int i = 0; i < N; ++i)
@@ -214,7 +238,12 @@ int main(void)
                 break;
             }
         }
-
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+            cp.next();
+        }
+        auto wheel = GetMouseWheelMove();
+        if (wheel == -1) {sp.prev();}
+        if (wheel == 1) {sp.next();}
         //click
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             bool valid = true;
@@ -285,8 +314,8 @@ int main(void)
             int i = 0;
             for (auto& r : cp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
-                    cp.current.color = cp.color[i];
-                    cp.current.rect = r;
+                    cp.updateCurrent(i);
+                    
                     select = true;  
                     break;
                 }
