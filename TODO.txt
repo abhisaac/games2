@@ -8,7 +8,9 @@
 * 2d fruit ninja
 * 3d camera FPS
 * 3d duck hunt
-* paint ...
+* paint [DONE]
 * shaders
 * opengl Win32
-* 
+* game physics
+* level editor 2d (based on paint)
+* save levels - serialize in/out game levels

@@ -85,7 +85,7 @@ struct Shape {
 
 struct LineShape : public Shape {
     std::vector<Vector2> pos;
-
+    LineShape(Vector2 newpos) {pos.emplace_back(newpos);}
     void draw() {
         bool first = true;
         Vector2 last;
@@ -124,7 +124,6 @@ struct CircleShape : public Shape {
     CircleShape(Vector2 pos) : start(pos), end(pos) {}
     void draw() {
         DrawCircle(start.x, start.y, std::max(abs(end.x-start.x), abs(end.y-start.y)), color);
-        // DrawRectangle(start.x, start.y, end.x-start.x, end.y-start.y, color);
     }
     void clear() {
         
@@ -265,8 +264,8 @@ int main(void)
                         break;
                     case SHAPE::LINE:
                     {
-                        auto ls =  new LineShape();
-                        ls->pos.emplace_back(mousePoint);
+                        auto ls =  new LineShape(mousePoint);
+                        
                         ls->color = cp.current.color;
                         transient = ls;
                     }
@@ -320,10 +319,14 @@ int main(void)
             ClearBackground(RAYWHITE);
             DrawRectangleLines(0, 0, 30, 30, RED);
 
-            // debug
-            char ss[3];
-            sprintf(ss,"%d", s);
-            DrawText(ss, 270, 0, 50, RED);
+            
+            if (0) {
+                // debug shape counter
+                char ss[3];
+                sprintf(ss,"%d", s);
+                DrawText(ss, 270, 0, 50, RED);
+            }
+            
             
             // color picker
             cp.draw();
