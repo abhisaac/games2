@@ -207,6 +207,10 @@ int main(void)
         // save .png etc.
 
         //redo
+        if (IsKeyPressed(KEY_S) && IsKeyPressed(KEY_LEFT_CONTROL)) {
+            puts("EE");
+            TakeScreenshot("C:\\games\\tmp.png");
+        }
         if (IsKeyUp(KEY_Y) || IsKeyUp(KEY_LEFT_CONTROL)) isredo = false;
         else if (!isredo && IsKeyDown(KEY_Y) && IsKeyDown(KEY_LEFT_CONTROL)) {
             isredo = true;
@@ -332,6 +336,16 @@ int main(void)
                 ++i;
             }
             if (!select) {
+                //commit transaction
+
+                // cleanup redo stack
+                int i = s;
+                while(strokes[i++]) {
+                    delete(strokes[i]);
+                    strokes[i] = nullptr;
+                }
+
+                //commit
                 strokes[s] = transient;
                 transient = nullptr;
                 
