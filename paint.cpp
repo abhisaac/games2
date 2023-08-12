@@ -188,29 +188,26 @@ int main(void)
     // Main game loop
 
     int s = 0; // stroke counter
-    int rs = 0;
-    int maxs = 0;
-
+    
     bool isundo = false;
     bool isredo = false;
     bool down = false;
     bool save = false;
+
     Rectangle hover;
     bool showhover = false;
-    // std::vector<Vector2> pos2;
+    
     Shape* transient = nullptr;
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
-    
-        // TODO: 
-        // save .png etc.
-
-        //redo
+        //save
         if (IsKeyUp(KEY_S) || IsKeyUp(KEY_LEFT_CONTROL)) save = false;
         if (!save && IsKeyDown(KEY_S) && IsKeyDown(KEY_LEFT_CONTROL)) {
-           TakeScreenshot("tmp.png");
+           TakeScreenshot("tmp.png"); // TODO: Fix png size; edge pixels bleeding out
             save = true;
         }
+
+        //redo
         if (IsKeyUp(KEY_Y) || IsKeyUp(KEY_LEFT_CONTROL)) isredo = false;
         else if (!isredo && IsKeyDown(KEY_Y) && IsKeyDown(KEY_LEFT_CONTROL)) {
             isredo = true;
@@ -221,14 +218,13 @@ int main(void)
         //undo
         if (IsKeyUp(KEY_Z) || IsKeyUp(KEY_LEFT_CONTROL)) isundo = false;
         else if (!isundo && IsKeyDown(KEY_Z) && IsKeyDown(KEY_LEFT_CONTROL)) {
-            
             isundo = true;
             --s;
             if (s<0) s=0;
         }
         
         Vector2 mousePoint = GetMousePosition();
-        //hover
+        //hover on tools
         for (auto& r : cp.rect) {
             if (CheckCollisionPointRec(mousePoint, r)) {
                 hover = r;
@@ -243,15 +239,22 @@ int main(void)
                 break;
             }
         }
+
+        // cycle through color picker (right click)
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
             cp.next();
         }
+
+        // cycle through shape picker (mouse wheel)
         auto wheel = GetMouseWheelMove();
         if (wheel == -1) {sp.prev();}
         if (wheel == 1) {sp.next();}
+        
         //click
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             bool valid = true;
+
+            // disable clicks on tools while drawing
             for (auto& r : cp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
                     valid = false;
@@ -264,9 +267,10 @@ int main(void)
                     break;
                 }
             }
-            if (valid) {
 
+            if (valid) {
                 if (!transient) {
+                    // TODO: refactor this below
                     switch (sp.current.shape)
                     {
                     case SHAPE::RECTANGLE:
@@ -279,7 +283,6 @@ int main(void)
                     case SHAPE::CIRCLE:
                     {
                         auto ls =  new CircleShape(mousePoint);
-                        
                         ls->color = cp.current.color;
                         transient = ls;
                     }
@@ -287,7 +290,6 @@ int main(void)
                     case SHAPE::TRIANGLE:
                     {
                         auto ls =  new TriangleShape(mousePoint);
-                        
                         ls->color = cp.current.color;
                         transient = ls;
                     }
@@ -295,7 +297,6 @@ int main(void)
                     case SHAPE::LINE:
                     {
                         auto ls =  new LineShape(mousePoint);
-                        
                         ls->color = cp.current.color;
                         transient = ls;
                     }
@@ -316,7 +317,6 @@ int main(void)
             for (auto& r : cp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
                     cp.updateCurrent(i);
-                    
                     select = true;  
                     break;
                 }
@@ -357,7 +357,6 @@ int main(void)
             ClearBackground(RAYWHITE);
             DrawRectangleLines(0, 0, 30, 30, RED);
 
-            
             if (0) {
                 // debug shape counter
                 char ss[3];
@@ -365,22 +364,19 @@ int main(void)
                 DrawText(ss, 270, 0, 50, RED);
             }
             
-            
-            // color picker
+            //tools
             cp.draw();
             sp.draw();
-            // shape picker
       
             if (showhover) {
                 DrawRectangleLinesEx(hover, 7.f, GRAY);  
                 showhover = false;
             }
-            
-            // strokes[0]->draw();
-            if (transient)   transient->draw();
+
             for(int i = 0; i < s; ++i) {
                 strokes[i]->draw();
             }
+            if (transient)   transient->draw();
 
         EndDrawing();
         //----------------------------------------------------------------------------------
