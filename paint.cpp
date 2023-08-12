@@ -1,6 +1,7 @@
 
 #include "raylib.h"
 #include <vector>
+#include <set>
 
 struct ColorPicker {
     static const int N = 8;
@@ -58,6 +59,7 @@ struct Stroke {
 int main(void)
 {
     ColorPicker cp;
+    std::set<int> used;
 
     const int screenWidth = 800;
     const int screenHeight = 450;
@@ -70,8 +72,11 @@ int main(void)
     // Main game loop
 
     int s = 0; // stroke counter
+    int rs = 0;
+    int maxs = 0;
 
     bool isundo = false;
+    bool isredo = false;
     bool down = false;
     
     Rectangle hover;
@@ -85,11 +90,18 @@ int main(void)
         // brush picker
         // save .png etc.
 
+        //redo
+        if (IsKeyUp(KEY_Y) || IsKeyUp(KEY_LEFT_CONTROL)) isredo = false;
+        else if (!isredo && IsKeyDown(KEY_Y) && IsKeyDown(KEY_LEFT_CONTROL)) {
+            isredo = true;
+            ++s;
+        }
+
+        //undo
         if (IsKeyUp(KEY_Z) || IsKeyUp(KEY_LEFT_CONTROL)) isundo = false;
-        
         else if (!isundo && IsKeyDown(KEY_Z) && IsKeyDown(KEY_LEFT_CONTROL)) {
             isundo = true;
-            strokes[s-1].pos.clear();
+            // strokes[s-1].pos.clear();
             --s;
             if (s<0) s=0;
         }
@@ -114,6 +126,10 @@ int main(void)
                 }
             }
             if (valid) {
+                if (used.count(s)) {
+                    strokes[s].pos.clear();
+                    used.erase(used.find(s));
+                }
                 strokes[s].color = cp.current.color;
                 strokes[s].pos.emplace_back(mousePoint);
             }
@@ -133,7 +149,9 @@ int main(void)
             }
             if (!select) {
                 strokes[s].color = cp.current.color;
+                used.insert(s);
                 ++s;
+                // rs = s;
             }
             down = false;
         }
@@ -145,10 +163,10 @@ int main(void)
             ClearBackground(RAYWHITE);
             DrawRectangleLines(0, 0, 30, 30, RED);
 
-// debug
-            // char ss[3];
-            // sprintf(ss,"%d", s);
-            // DrawText(ss, 270, 0, 50, RED);
+            // debug
+            char ss[3];
+            sprintf(ss,"%d", s);
+            DrawText(ss, 270, 0, 50, RED);
             
             // color picker
             cp.draw();
@@ -159,10 +177,10 @@ int main(void)
                 showhover = false;
             }
             
-            // for(int i = 0; i <= s; ++i) {
-            for(auto&s : strokes)
-                s.draw();
-            // }
+            strokes[0].draw();
+            for(int i = 0; i < s; ++i) {
+                strokes[i].draw();
+            }
 
         EndDrawing();
         //----------------------------------------------------------------------------------
