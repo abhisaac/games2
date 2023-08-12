@@ -176,7 +176,6 @@ int main(void)
 {
     ColorPicker cp;
     ShapePicker sp;
-    std::set<int> used;
 
     const int screenWidth = 1200;
     const int screenHeight = 800;
@@ -195,7 +194,7 @@ int main(void)
     bool isundo = false;
     bool isredo = false;
     bool down = false;
-    
+    bool save = false;
     Rectangle hover;
     bool showhover = false;
     // std::vector<Vector2> pos2;
@@ -207,9 +206,10 @@ int main(void)
         // save .png etc.
 
         //redo
-        if (IsKeyPressed(KEY_S) && IsKeyPressed(KEY_LEFT_CONTROL)) {
-            puts("EE");
-            TakeScreenshot("C:\\games\\tmp.png");
+        if (IsKeyUp(KEY_S) || IsKeyUp(KEY_LEFT_CONTROL)) save = false;
+        if (!save && IsKeyDown(KEY_S) && IsKeyDown(KEY_LEFT_CONTROL)) {
+           TakeScreenshot("tmp.png");
+            save = true;
         }
         if (IsKeyUp(KEY_Y) || IsKeyUp(KEY_LEFT_CONTROL)) isredo = false;
         else if (!isredo && IsKeyDown(KEY_Y) && IsKeyDown(KEY_LEFT_CONTROL)) {
@@ -221,6 +221,7 @@ int main(void)
         //undo
         if (IsKeyUp(KEY_Z) || IsKeyUp(KEY_LEFT_CONTROL)) isundo = false;
         else if (!isundo && IsKeyDown(KEY_Z) && IsKeyDown(KEY_LEFT_CONTROL)) {
+            
             isundo = true;
             --s;
             if (s<0) s=0;
@@ -264,11 +265,7 @@ int main(void)
                 }
             }
             if (valid) {
-                // TODO: remove used
-                if (used.count(s)) {
-                    strokes[s]->clear();
-                    used.erase(used.find(s));
-                }
+
                 if (!transient) {
                     switch (sp.current.shape)
                     {
@@ -348,8 +345,6 @@ int main(void)
                 //commit
                 strokes[s] = transient;
                 transient = nullptr;
-                
-                used.insert(s);
                 ++s;
             }
             down = false;
