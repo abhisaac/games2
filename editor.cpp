@@ -1,26 +1,44 @@
 
 #include "raylib.h"
-#include <vector>
-#include <set>
-#include <iostream>
+#include <cmath>
+// #include <iostream>
+#define RAYGUI_IMPLEMENTATION
+#include "raygui.h"
+/*TODO
+* select tool
+* clone
+* grid 
+* save/load map
+* player physics
+* texture loading
+*/
+
+//helpers
+float min(float x, float y) { return x < y ? x : y;}
+float max(float x, float y) { return x > y ? x : y;}
+
 
 enum SHAPE {
     RECTANGLE,
     CIRCLE,
-    TRIANGLE,
-    LINE
+    SELECT,
+    // TRIANGLE,
+    // LINE
+    _SHAPE_SIZE
 } ;
 
+
+
 struct ShapePicker {
-    static const int N = 4;
-    std::vector<Rectangle> rect  {
+    static const int N = _SHAPE_SIZE;
+    Rectangle rect[N]  {
         {0.f, 40.f, 30.f, 30.f},
         {0.f, 70.f, 30.f, 30.f} ,
         {0.f, 100.f, 30.f, 30.f} ,
-        {0.f, 130.f, 30.f, 30.f},
+        // {0.f, 130.f, 30.f, 30.f},
     };
 
-    const char* shapes_str[N] = {"R", "C", "T", "L"};
+    const char* shapes_str[4] = {"R", "C", "+", "L"};
 
     struct {
         Rectangle rect;
@@ -54,7 +72,7 @@ struct ShapePicker {
 
 struct ColorPicker {
     static const int N = 8;
-    std::vector<Rectangle> rect  {
+    Rectangle rect[N]  {
         {0.f, 0.f, 30.f, 30.f},
         {30.f, 0.f, 30.f, 30.f} ,
         {60.f, 0.f, 30.f, 30.f} ,
@@ -65,7 +83,7 @@ struct ColorPicker {
         {210.f, 0.f, 30.f, 30.f},
     };
     
-    std::vector<Color> color  {
+    Color color[N]  {
         DARKGRAY,
         ORANGE ,
         PINK ,
@@ -101,76 +119,61 @@ struct ColorPicker {
 };
 
 struct Shape {
+    SHAPE shape;
     Color color;
     virtual void push(Vector2 pos) {}
     virtual void draw() {}
     virtual void clear() {}
-};
-
-struct LineShape : public Shape {
-    std::vector<Vector2> pos;
-    LineShape(Vector2 newpos) {pos.emplace_back(newpos);}
-    void draw() {
-        bool first = true;
-        Vector2 last;
-        for (auto& p : pos) {
-            if (first){first = !first; last = p;continue;}
-            DrawLineBezier(last, p, 3, color);
-            last = p;
-        }
-    }
-
-    void push(Vector2 newpos) {
-        pos.emplace_back(newpos);
-    }
-
-    void clear() {
-        pos.clear();
-    }
+    virtual bool intersects(Vector2 pos) {return false;}
+    virtual void move(Vector2 dt) {}
 };
 
 struct RectShape : public Shape {
     Vector2 start, end;
+    Rectangle bounds;
     RectShape(Vector2 pos) : start(pos), end(pos) {}
     void draw() {
-        DrawRectangle(std::min(start.x,end.x), std::min(start.y, end.y), abs(end.x-start.x), abs(end.y-start.y), color);
+        DrawRectangle(bounds.x, bounds.y, bounds.width, bounds.height, color);
     }
     void clear() {
         
     }
+    void move (Vector2 dt){
+        bounds.x += dt.x;
+        bounds.y += dt.y;
+    }
     void push(Vector2 newpos) {
         end = newpos;
+        bounds = {min(start.x,end.x), min(start.y, end.y), abs(end.x-start.x), abs(end.y-start.y)};
+    }
+    bool intersects(Vector2 pos) {
+        return CheckCollisionPointRec(pos, bounds);
     }
 };
 
 struct CircleShape : public Shape {
     Vector2 start, end;
+    float radius;
     CircleShape(Vector2 pos) : start(pos), end(pos) {}
     void draw() {
-        DrawCircle(start.x, start.y, std::max(abs(end.x-start.x), abs(end.y-start.y)), color);
+        DrawCircle(start.x, start.y, radius, color);
     }
     void clear() {
         
     }
+    void move (Vector2 dt){
+        start.x += dt.x;
+        start.y += dt.y;
+    }
     void push(Vector2 newpos) {
         end = newpos;
+        radius =  max(abs(end.x-start.x), abs(end.y-start.y));
+    }
+    bool intersects(Vector2 pos) {
+        return CheckCollisionPointCircle(pos, start, radius);
     }
 };
 
-// TODO: implement triangle
-struct TriangleShape : public Shape {
-    Vector2 start, end;
-    TriangleShape(Vector2 pos) : start(pos), end(pos) {}
-    void draw() {
-        DrawRectangle(start.x, start.y, end.x-start.x, end.y-start.y, color);
-    }
-    void clear() {
-        
-    }
-    void push(Vector2 newpos) {
-        end = newpos;
-    }
-};
 
 int main(void)
 {
@@ -184,7 +187,7 @@ int main(void)
 
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
-    std::vector<Shape*> strokes(100);
+    Shape* strokes[100] = {0};
     // Main game loop
 
     int s = 0; // stroke counter
@@ -196,10 +199,21 @@ int main(void)
 
     Rectangle hover;
     bool showhover = false;
+
+    Rectangle rect {350, 10, 40, 10};
     
     Shape* transient = nullptr;
+
+    Shape* selectTransient = nullptr;
+    // Vector2 startMousePos;
+    // bool select = false;
+    
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
+        
+        // if (select) SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
+        // else        
+        SetMouseCursor(MOUSE_CURSOR_CROSSHAIR);
         //save
         if (IsKeyUp(KEY_S) || IsKeyUp(KEY_LEFT_CONTROL)) save = false;
         if (!save && IsKeyDown(KEY_S) && IsKeyDown(KEY_LEFT_CONTROL)) {
@@ -227,6 +241,7 @@ int main(void)
         //hover on tools
         for (auto& r : cp.rect) {
             if (CheckCollisionPointRec(mousePoint, r)) {
+                SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                 hover = r;
                 showhover = true;
                 break;
@@ -234,6 +249,7 @@ int main(void)
         }
         for (auto& r : sp.rect) {
             if (CheckCollisionPointRec(mousePoint, r)) {
+                SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                 hover = r;
                 showhover = true;
                 break;
@@ -257,16 +273,27 @@ int main(void)
             // disable clicks on tools while drawing
             for (auto& r : cp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
+                    SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     valid = false;
                     break;
                 }
             }
             for (auto& r : sp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
+                    SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     valid = false;
                     break;
                 }
             }
+
+            if (sp.current.shape == SHAPE::SELECT) {
+                 for (int i = 0; i < s; ++i) {
+                    if (strokes[i]->intersects(mousePoint)) {
+                        // move shape with mouse drag
+                    }
+                 }
+            }
+           
 
             if (valid) {
                 if (!transient) {
@@ -287,20 +314,32 @@ int main(void)
                         transient = ls;
                     }
                         break;
-                    case SHAPE::TRIANGLE:
+                    case SHAPE::SELECT:
                     {
-                        auto ls =  new TriangleShape(mousePoint);
-                        ls->color = cp.current.color;
-                        transient = ls;
+                        // select = true;
+                        if (!selectTransient) {
+                            for (int i= 0; i <s;++i) {
+                                if (strokes[i]->intersects(mousePoint)) {
+                                    selectTransient = strokes[i];
+                                    break;
+                                }
+                            }
+                            // startMousePos = mousePoint;
+                        } else {
+                            selectTransient->move(GetMouseDelta());
+                            // selectTransient->bounds.x = selectTransient->bounds.x + (GetMouseDelta().x);// - startMousePos.x);
+                            // selectTransient->bounds.y = selectTransient->bounds.y + (GetMouseDelta().y);// - startMousePos.y);
+                        }
+                        
                     }
                         break;
-                    case SHAPE::LINE:
-                    {
-                        auto ls =  new LineShape(mousePoint);
-                        ls->color = cp.current.color;
-                        transient = ls;
-                    }
-                        break;
+                    // case SHAPE::LINE:
+                    // {
+                    //     auto ls =  new LineShape(mousePoint);
+                    //     ls->color = cp.current.color;
+                    //     transient = ls;
+                    // }
+                    //     break;
                     
                     default:
                         break;
@@ -316,6 +355,7 @@ int main(void)
             int i = 0;
             for (auto& r : cp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
+                    SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     cp.updateCurrent(i);
                     select = true;  
                     break;
@@ -325,6 +365,7 @@ int main(void)
             i = 0;
             for (auto& r : sp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
+                    SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     sp.current.shape = (SHAPE)i;
                     sp.current.rect = r;
                     select = true;  
@@ -332,7 +373,7 @@ int main(void)
                 }
                 ++i;
             }
-            if (!select) {
+            if (!select && transient) {
                 //commit transaction
 
                 // cleanup redo stack
@@ -348,6 +389,7 @@ int main(void)
                 ++s;
             }
             down = false;
+            selectTransient = nullptr;
         }
             
 
@@ -355,6 +397,25 @@ int main(void)
         BeginDrawing();
 
             ClearBackground(RAYWHITE);
+            // Clear
+            if (GuiButton({350, 0, 80, 40}, "#0#Clear")) { 
+                int i = 0;
+                while(strokes[i++]) {
+                    delete(strokes[i]);
+                    strokes[i] = nullptr;
+                }
+                s = 0;
+            }
+
+            // Save
+            if (GuiButton({350+80, 0, 80, 40}, "#5#Save")) { 
+                // int i = 0;
+                // while(strokes[i++]) {
+                //     delete(strokes[i]);
+                //     strokes[i] = nullptr;
+                // }
+                // s = 0;
+            }
             DrawRectangleLines(0, 0, 30, 30, RED);
 
             if (0) {

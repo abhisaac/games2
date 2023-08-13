@@ -13,4 +13,5 @@
 * opengl Win32
 * game physics
 * level editor 2d (based on paint)
-* save levels - serialize in/out game levels
+* save levels - serialize in/out game levels/maps
+* grid on/off for editor
