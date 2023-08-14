@@ -1,14 +1,20 @@
 
 #include "raylib.h"
+#include <string>
+// #include <cstdio>
+// #include <cstdlib>
+#include <fstream>
 #include <cmath>
+// #include <sstream>
+// #include <iostream>
 // #include <iostream>
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
+// #include <string>
 /*TODO
-* select tool
+
 * clone
 * grid 
-* save/load map
 * player physics
 * texture loading
 */
@@ -126,17 +132,26 @@ struct Shape {
     virtual void clear() {}
     virtual bool intersects(Vector2 pos) {return false;}
     virtual void move(Vector2 dt) {}
+    virtual char* serialize() { return nullptr;}
 };
 
 struct RectShape : public Shape {
     Vector2 start, end;
     Rectangle bounds;
-    RectShape(Vector2 pos) : start(pos), end(pos) {}
+    RectShape() {shape = RECTANGLE;}
+    RectShape(Vector2 pos) : start(pos), end(pos) { shape=RECTANGLE;}
     void draw() {
         DrawRectangle(bounds.x, bounds.y, bounds.width, bounds.height, color);
     }
     void clear() {
         
+    }
+    char* serialize() {
+        char* out = (char*) malloc(100*sizeof(char));
+        sprintf(out, "RECTANGLE %f %f %f %f COLOR %u %u %u %u", 
+                    bounds.x, bounds.y, bounds.width, bounds.height,
+                    color.r, color.g, color.b, color.a);
+        return out;
     }
     void move (Vector2 dt){
         bounds.x += dt.x;
@@ -154,12 +169,19 @@ struct RectShape : public Shape {
 struct CircleShape : public Shape {
     Vector2 start, end;
     float radius;
-    CircleShape(Vector2 pos) : start(pos), end(pos) {}
+    CircleShape() {shape = CIRCLE;}
+    CircleShape(Vector2 pos) : start(pos), end(pos) {shape = CIRCLE;}
     void draw() {
         DrawCircle(start.x, start.y, radius, color);
     }
     void clear() {
         
+    }
+    char* serialize() {
+        char* out = (char*) malloc(100*sizeof(char));
+        sprintf(out, "CIRCLE %f %f %f COLOR %u %u %u %u", start.x, start.y, radius,
+                        color.r, color.g, color.b, color.a);
+        return out;
     }
     void move (Vector2 dt){
         start.x += dt.x;
@@ -210,14 +232,18 @@ int main(void)
     
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
-        
-        // if (select) SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
-        // else        
-        SetMouseCursor(MOUSE_CURSOR_CROSSHAIR);
+        if (sp.current.shape == SHAPE::SELECT) SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
+        else SetMouseCursor(MOUSE_CURSOR_CROSSHAIR);
         //save
         if (IsKeyUp(KEY_S) || IsKeyUp(KEY_LEFT_CONTROL)) save = false;
         if (!save && IsKeyDown(KEY_S) && IsKeyDown(KEY_LEFT_CONTROL)) {
-           TakeScreenshot("tmp.png"); // TODO: Fix png size; edge pixels bleeding out
+        //    TakeScreenshot("tmp.png"); // TODO: Fix png size; edge pixels bleeding out
+            FILE* fid=fopen("test.map", "w");
+            for (int i = 0;i < s; ++i){
+                fprintf(fid, "%s\n", strokes[i]->serialize());
+            }
+            
+            fclose(fid);
             save = true;
         }
 
@@ -286,13 +312,13 @@ int main(void)
                 }
             }
 
-            if (sp.current.shape == SHAPE::SELECT) {
-                 for (int i = 0; i < s; ++i) {
-                    if (strokes[i]->intersects(mousePoint)) {
-                        // move shape with mouse drag
-                    }
-                 }
-            }
+            // if (sp.current.shape == SHAPE::SELECT) {
+            //      for (int i = 0; i < s; ++i) {
+            //         if (strokes[i]->intersects(mousePoint)) {
+            //             // move shape with mouse drag
+            //         }
+            //      }
+            // }
            
 
             if (valid) {
@@ -318,17 +344,15 @@ int main(void)
                     {
                         // select = true;
                         if (!selectTransient) {
-                            for (int i= 0; i <s;++i) {
+                            for (int i= s-1; i >=0 ;--i) {
                                 if (strokes[i]->intersects(mousePoint)) {
                                     selectTransient = strokes[i];
                                     break;
                                 }
                             }
-                            // startMousePos = mousePoint;
                         } else {
+                            SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
                             selectTransient->move(GetMouseDelta());
-                            // selectTransient->bounds.x = selectTransient->bounds.x + (GetMouseDelta().x);// - startMousePos.x);
-                            // selectTransient->bounds.y = selectTransient->bounds.y + (GetMouseDelta().y);// - startMousePos.y);
                         }
                         
                     }
@@ -407,14 +431,55 @@ int main(void)
                 s = 0;
             }
 
-            // Save
-            if (GuiButton({350+80, 0, 80, 40}, "#5#Save")) { 
-                // int i = 0;
-                // while(strokes[i++]) {
-                //     delete(strokes[i]);
-                //     strokes[i] = nullptr;
-                // }
-                // s = 0;
+            // Load
+            if (GuiButton({350+80, 0, 80, 40}, "#5#Load")) { 
+                //clear
+                int i = 0;
+                while(strokes[i++]) {
+                    delete(strokes[i]);
+                    strokes[i] = nullptr;
+                }
+                s = 0;
+
+                //load file to strokes
+                std::ifstream ifs("test.map"); //, "r");
+                // FILE* fid = fopen("temp.map", "r");
+                // size_t n = 100;
+                // char* line = (char*)malloc(sizeof(char) * n);
+                std::string line;
+                while(std::getline(ifs, line)) {
+                    // std::string type, data;
+                    char shape[25], data[70];
+                    sscanf(line.c_str(), "%s %[^\n]", shape, data );
+                    // std::stringstream ss(line);
+                    // line >> type >> data;
+                    if (strcmp(shape, "RECTANGLE") == 0) {
+                        Rectangle r;
+                        Color c;
+                        sscanf(data, "%f %f %f %f COLOR %hhd %hhd %hhd %hhd",
+                                    &r.x, &r.y, &r.width, &r.height,
+                                    &c.r, &c.g, &c.b, &c.a);
+                        auto tmp = new RectShape();
+                        tmp->color = c;
+                        tmp->bounds = r;
+                        strokes[s++] = tmp;
+                        // std::cout << "RECT" << std::endl;
+                    } else if (strcmp(shape,"CIRCLE")==0) {
+                        Vector2 center;
+                        float radius;
+                        Color c;
+                        sscanf(data, "%f %f %f COLOR %hhd %hhd %hhd %hhd",
+                                    &center.x, &center.y, &radius,
+                                    &c.r, &c.g, &c.b, &c.a);
+                        auto tmp = new CircleShape();
+                        tmp->color = c;
+                        tmp->radius = radius;
+                        tmp->start = center;
+                        strokes[s++] = tmp;
+                        // std::cout << "CIRC" << std::endl;
+                    }
+                }
+
             }
             DrawRectangleLines(0, 0, 30, 30, RED);
 
