@@ -12,6 +12,7 @@
 #include "raygui.h"
 // #include <string>
 /*TODO
+* copy tool
 * resize tool
 * undo move/resize etc.
 * UUID for objects instead of index in strokes
@@ -35,6 +36,17 @@ enum SHAPE {
     _SHAPE_SIZE
 } ;
 
+
+struct Shape {
+    SHAPE shape;
+    Color color;
+    virtual void push(Vector2 pos) {}
+    virtual void draw() {}
+    virtual void clear() {}
+    virtual bool intersects(Vector2 pos) {return false;}
+    virtual void move(Vector2 dt) {}
+    virtual char* serialize() { return nullptr;}
+};
 
 
 struct ShapePicker {
@@ -72,9 +84,9 @@ struct ShapePicker {
     }
     void draw(){
         for (int i = 0; i < N; ++i)
-            DrawText(shapes_str[i], rect[i].x + 4.f, rect[i].y+4.f, 20.f, BLACK);
+            DrawText(shapes_str[i], rect[i].x + 10.f, rect[i].y+8.f, 16.f, WHITE);
         // highlight current rect
-        DrawRectangleLinesEx(current.rect, 6.f, GOLD);  
+        DrawRectangleLinesEx(current.rect, 4.f, GOLD);  
     }
 };
 
@@ -122,19 +134,8 @@ struct ColorPicker {
         for (int i = 0; i < N; ++i)
             DrawRectangleRec(rect[i], color[i]);
         // highlight current rect
-        DrawRectangleLinesEx(current.rect, 6.f, GOLD);  
+        DrawRectangleLinesEx(current.rect, 4.f, GOLD);  
     }
-};
-
-struct Shape {
-    SHAPE shape;
-    Color color;
-    virtual void push(Vector2 pos) {}
-    virtual void draw() {}
-    virtual void clear() {}
-    virtual bool intersects(Vector2 pos) {return false;}
-    virtual void move(Vector2 dt) {}
-    virtual char* serialize() { return nullptr;}
 };
 
 struct RectShape : public Shape {
@@ -199,6 +200,119 @@ struct CircleShape : public Shape {
 };
 
 
+struct Player {
+    Color color;
+    Rectangle pos;
+    float gravity = 300.f;
+    float speedy = 0.0f;
+    float speedx = 1.f;
+    bool jump;
+    void reset () {
+         gravity = 300.f;
+         speedy = 0.0f;
+         speedx = 1.f;
+         jump = true;
+    }
+    Player() : color(ORANGE), pos({130, 130, 30, 30}) {
+        reset();
+    };
+    void update(Shape** objs) {
+        auto time = GetFrameTime();
+        if (IsKeyDown(KEY_R)) {
+            pos.x = 130;
+            pos.y = 130;
+            reset();
+        } 
+        if (IsKeyDown(KEY_RIGHT)) {
+            speedx = 306.f;
+        } 
+        if (IsKeyDown(KEY_LEFT)) {
+            speedx = -306.f;
+        } 
+        if (!jump && speedy >= 0.f && (IsKeyPressed(KEY_SPACE)||IsKeyPressed(KEY_UP))) {
+            pos.y -= 2.f;
+            speedy = -260.f;
+            if (speedy < -260.f)
+                speedy = -260.f;
+            jump = true;
+        }
+
+        pos.x += speedx * time;
+        bool collide=  false;
+        for (int i  = 0;i < 100; ++i) {
+            if (objs[i]) {
+                RectShape* tmp = (RectShape*)objs[i];
+                if (CheckCollisionPointRec({pos.x, pos.y + 30.f}, tmp->bounds)) {
+                    pos.y = tmp->bounds.y-30.f;
+                    collide = true;
+                    jump = false;
+                    break;
+                }
+            }
+        }
+        if (!collide) {
+            pos.y += speedy * time;
+            speedy += gravity * time;
+        } else {
+            speedy = 0.f;
+        }
+            
+        speedx *= .8f;
+        if (speedx < 0.001f) speedx = 0;
+    }
+    void draw() {
+        DrawRectangleRounded (pos, .2f, 2, color);
+    }
+};
+
+void clearStrokes(Shape** strokes, int&s) {
+    for (int i = 0; i < s; ++i) {
+        delete(strokes[i]);
+        strokes[i] = nullptr;
+    }
+    s = 0;
+}
+
+void loadStrokes(Shape** strokes, int& s) {
+    //load file to strokes
+    std::ifstream ifs("test.map"); //, "r");
+    // FILE* fid = fopen("temp.map", "r");
+    // size_t n = 100;
+    // char* line = (char*)malloc(sizeof(char) * n);
+    std::string line;
+    while(std::getline(ifs, line)) {
+        // std::string type, data;
+        char shape[25], data[70];
+        sscanf(line.c_str(), "%s %[^\n]", shape, data );
+        // std::stringstream ss(line);
+        // line >> type >> data;
+        if (strcmp(shape, "RECTANGLE") == 0) {
+            Rectangle r;
+            Color c;
+            sscanf(data, "%f %f %f %f COLOR %hhd %hhd %hhd %hhd",
+                        &r.x, &r.y, &r.width, &r.height,
+                        &c.r, &c.g, &c.b, &c.a);
+            auto tmp = new RectShape();
+            tmp->color = c;
+            tmp->bounds = r;
+            strokes[s++] = tmp;
+            // std::cout << "RECT" << std::endl;
+        } else if (strcmp(shape,"CIRCLE")==0) {
+            Vector2 center;
+            float radius;
+            Color c;
+            sscanf(data, "%f %f %f COLOR %hhd %hhd %hhd %hhd",
+                        &center.x, &center.y, &radius,
+                        &c.r, &c.g, &c.b, &c.a);
+            auto tmp = new CircleShape();
+            tmp->color = c;
+            tmp->radius = radius;
+            tmp->start = center;
+            strokes[s++] = tmp;
+            // std::cout << "CIRC" << std::endl;
+        }
+    }
+}
 int main(void)
 {
     ColorPicker cp;
@@ -209,11 +323,10 @@ int main(void)
 
     InitWindow(screenWidth, screenHeight, "!! Paint");
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
-    //--------------------------------------------------------------------------------------
+    SetTargetFPS(60);
+    
+    
     Shape* strokes[100] = {0};
-    // Main game loop
-
     int s = 0; // stroke counter
     
     bool isundo = false;
@@ -229,9 +342,9 @@ int main(void)
     Shape* transient = nullptr;
 
     Shape* selectTransient = nullptr;
-    // Vector2 startMousePos;
-    // bool select = false;
-    
+
+    Player p;
+    loadStrokes(strokes, s);
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
         if (sp.current.shape == SHAPE::SELECT) SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
@@ -313,16 +426,6 @@ int main(void)
                     break;
                 }
             }
-
-            // if (sp.current.shape == SHAPE::SELECT) {
-            //      for (int i = 0; i < s; ++i) {
-            //         if (strokes[i]->intersects(mousePoint)) {
-            //             // move shape with mouse drag
-            //         }
-            //      }
-            // }
-           
-
             if (valid) {
                 if (!transient) {
                     // TODO: refactor this below
@@ -359,13 +462,6 @@ int main(void)
                         
                     }
                         break;
-                    // case SHAPE::LINE:
-                    // {
-                    //     auto ls =  new LineShape(mousePoint);
-                    //     ls->color = cp.current.color;
-                    //     transient = ls;
-                    // }
-                    //     break;
                     
                     default:
                         break;
@@ -418,70 +514,24 @@ int main(void)
             selectTransient = nullptr;
         }
             
-
+        p.update(strokes);
         //----------------------------------------------------------------------------------
         BeginDrawing();
 
-            ClearBackground(RAYWHITE);
+            ClearBackground(BLACK);
             // Clear
             if (GuiButton({350, 0, 80, 40}, "#0#Clear")) { 
-                int i = 0;
-                while(strokes[i++]) {
-                    delete(strokes[i]);
-                    strokes[i] = nullptr;
-                }
-                s = 0;
+                //clear
+                clearStrokes(strokes, s);
             }
 
             // Load
             if (GuiButton({350+80, 0, 80, 40}, "#5#Load")) { 
                 //clear
-                int i = 0;
-                while(strokes[i++]) {
-                    delete(strokes[i]);
-                    strokes[i] = nullptr;
-                }
-                s = 0;
+                clearStrokes(strokes, s);
 
-                //load file to strokes
-                std::ifstream ifs("test.map"); //, "r");
-                // FILE* fid = fopen("temp.map", "r");
-                // size_t n = 100;
-                // char* line = (char*)malloc(sizeof(char) * n);
-                std::string line;
-                while(std::getline(ifs, line)) {
-                    // std::string type, data;
-                    char shape[25], data[70];
-                    sscanf(line.c_str(), "%s %[^\n]", shape, data );
-                    // std::stringstream ss(line);
-                    // line >> type >> data;
-                    if (strcmp(shape, "RECTANGLE") == 0) {
-                        Rectangle r;
-                        Color c;
-                        sscanf(data, "%f %f %f %f COLOR %hhd %hhd %hhd %hhd",
-                                    &r.x, &r.y, &r.width, &r.height,
-                                    &c.r, &c.g, &c.b, &c.a);
-                        auto tmp = new RectShape();
-                        tmp->color = c;
-                        tmp->bounds = r;
-                        strokes[s++] = tmp;
-                        // std::cout << "RECT" << std::endl;
-                    } else if (strcmp(shape,"CIRCLE")==0) {
-                        Vector2 center;
-                        float radius;
-                        Color c;
-                        sscanf(data, "%f %f %f COLOR %hhd %hhd %hhd %hhd",
-                                    &center.x, &center.y, &radius,
-                                    &c.r, &c.g, &c.b, &c.a);
-                        auto tmp = new CircleShape();
-                        tmp->color = c;
-                        tmp->radius = radius;
-                        tmp->start = center;
-                        strokes[s++] = tmp;
-                        // std::cout << "CIRC" << std::endl;
-                    }
-                }
-
+                // load
+                loadStrokes(strokes, s);
             }
             DrawRectangleLines(0, 0, 30, 30, RED);
 
@@ -505,7 +555,7 @@ int main(void)
                 strokes[i]->draw();
             }
             if (transient)   transient->draw();
-
+            p.draw();
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
