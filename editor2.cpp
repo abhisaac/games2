@@ -46,6 +46,7 @@ struct Shape {
     virtual bool intersects(Vector2 pos) {return false;}
     virtual void move(Vector2 dt) {}
     virtual char* serialize() { return nullptr;}
+    virtual Shape* clone() {return nullptr;}
 };
 
 
@@ -143,6 +144,12 @@ struct RectShape : public Shape {
     Rectangle bounds;
     RectShape() {shape = RECTANGLE;}
     RectShape(Vector2 pos) : start(pos), end(pos) { shape=RECTANGLE;}
+    Shape* clone() {
+        auto* tmp = new RectShape;
+        tmp->bounds = bounds;
+        tmp->color = color;
+        return tmp;
+    }
     void draw() {
         DrawRectangle(bounds.x, bounds.y, bounds.width, bounds.height, color);
     }
@@ -174,6 +181,13 @@ struct CircleShape : public Shape {
     float radius;
     CircleShape() {shape = CIRCLE;}
     CircleShape(Vector2 pos) : start(pos), end(pos) {shape = CIRCLE;}
+    Shape* clone() {
+        auto* tmp = new CircleShape;
+        tmp->radius = radius;
+        tmp->start = start;
+        tmp->color = color;
+        return tmp;
+    }
     void draw() {
         DrawCircle(start.x, start.y, radius, color);
     }
@@ -447,11 +461,21 @@ int main(void)
                         break;
                     case SHAPE::SELECT:
                     {
-                        // select = true;
+                        // Move;
                         if (!selectTransient) {
                             for (int i= s-1; i >=0 ;--i) {
                                 if (strokes[i]->intersects(mousePoint)) {
-                                    selectTransient = strokes[i];
+                                    if (IsKeyDown(KEY_LEFT_CONTROL)) {
+                                        //copy
+                                    
+                                        selectTransient = strokes[i]->clone();
+                                        strokes[s++] = selectTransient;
+                                    
+                                    } else {
+                                        //move
+                                        selectTransient = strokes[i];
+                                    }
+                                    
                                     break;
                                 }
                             }
@@ -473,13 +497,13 @@ int main(void)
             down = true;
         }
         else if (down && IsMouseButtonUp(MOUSE_BUTTON_LEFT)) {
-            bool select = false;
+            bool toolselect = false;
             int i = 0;
             for (auto& r : cp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
                     SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     cp.updateCurrent(i);
-                    select = true;  
+                    toolselect = true;  
                     break;
                 }
                 ++i;
@@ -490,12 +514,12 @@ int main(void)
                     SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     sp.current.shape = (SHAPE)i;
                     sp.current.rect = r;
-                    select = true;  
+                    toolselect = true;  
                     break;
                 }
                 ++i;
             }
-            if (!select && transient) {
+            if (!toolselect && transient) {
                 //commit transaction
 
                 // cleanup redo stack
