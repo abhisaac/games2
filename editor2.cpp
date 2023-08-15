@@ -12,13 +12,11 @@
 #include "raygui.h"
 // #include <string>
 /*TODO
-* copy tool
 * resize tool
 * undo move/resize etc.
 * UUID for objects instead of index in strokes
 * clone
 * grid 
-* player physics
 * texture loading
 */
 
@@ -31,8 +29,6 @@ enum SHAPE {
     RECTANGLE,
     CIRCLE,
     SELECT,
-    // TRIANGLE,
-    // LINE
     _SHAPE_SIZE
 } ;
 
@@ -56,7 +52,6 @@ struct ShapePicker {
         {0.f, 40.f, 30.f, 30.f},
         {0.f, 70.f, 30.f, 30.f} ,
         {0.f, 100.f, 30.f, 30.f} ,
-        // {0.f, 130.f, 30.f, 30.f},
     };
 
     const char* shapes_str[4] = {"R", "C", "+", "L"};
@@ -94,14 +89,14 @@ struct ShapePicker {
 struct ColorPicker {
     static const int N = 8;
     Rectangle rect[N]  {
-        {0.f, 0.f, 30.f, 30.f},
-        {30.f, 0.f, 30.f, 30.f} ,
-        {60.f, 0.f, 30.f, 30.f} ,
-        {90.f, 0.f, 30.f, 30.f},
-        {120.f, 0.f, 30.f, 30.f},
-        {150.f, 0.f, 30.f, 30.f},
-        {180.f, 0.f, 30.f, 30.f} ,
-        {210.f, 0.f, 30.f, 30.f},
+        {0.f, 0.f,  28.f, 30.f},
+        {30.f, 0.f, 28.f, 30.f} ,
+        {60.f, 0.f, 28.f, 30.f} ,
+        {90.f, 0.f, 28.f, 30.f},
+        {120.f, 0.f, 28.f, 30.f},
+        {150.f, 0.f, 28.f, 30.f},
+        {180.f, 0.f, 28.f, 30.f} ,
+        {210.f, 0.f, 28.f, 30.f},
     };
     
     Color color[N]  {
@@ -133,7 +128,7 @@ struct ColorPicker {
     ColorPicker() : current({rect[0], color[0]}) {}
     void draw(){
         for (int i = 0; i < N; ++i)
-            DrawRectangleRec(rect[i], color[i]);
+            DrawRectangleRounded(rect[i], .25f, 2, color[i]);
         // highlight current rect
         DrawRectangleLinesEx(current.rect, 4.f, GOLD);  
     }
@@ -243,7 +238,7 @@ struct Player {
         if (IsKeyDown(KEY_LEFT)) {
             speedx = -306.f;
         } 
-        if (!jump && speedy >= 0.f && (IsKeyPressed(KEY_SPACE)||IsKeyPressed(KEY_UP))) {
+        if (!jump && speedy >= 0.f && (IsKeyPressed(KEY_UP))) {
             pos.y -= 2.f;
             speedy = -260.f;
             if (speedy < -260.f)
@@ -327,6 +322,15 @@ void loadStrokes(Shape** strokes, int& s) {
         }
     }
 }
+void savemap(char* filename, Shape** strokes, int& s) {
+
+    FILE* fid=fopen(filename, "w");
+    for (int i = 0;i < s; ++i){
+        fprintf(fid, "%s\n", strokes[i]->serialize());
+    }
+    
+    fclose(fid);
+}
 int main(void)
 {
     ColorPicker cp;
@@ -335,7 +339,7 @@ int main(void)
     const int screenWidth = 1200;
     const int screenHeight = 800;
 
-    InitWindow(screenWidth, screenHeight, "!! Paint");
+    InitWindow(screenWidth, screenHeight, "!! Game 1 (editor)");
 
     SetTargetFPS(60);
     
@@ -343,10 +347,12 @@ int main(void)
     Shape* strokes[100] = {0};
     int s = 0; // stroke counter
     
+    // avoid multiple key stroke updates with these bools
     bool isundo = false;
     bool isredo = false;
     bool down = false;
     bool save = false;
+    bool mapeditcontrol = false;
 
     Rectangle hover;
     bool showhover = false;
@@ -359,20 +365,19 @@ int main(void)
 
     Player p;
     loadStrokes(strokes, s);
+    char filename[20] = "test.map";
+    bool mapedit = false;
+    Rectangle mapfilenamebox {600, 1, 100, 40};
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
+        GuiTextBox(mapfilenamebox, filename, 90, mapedit);
         if (sp.current.shape == SHAPE::SELECT) SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
         else SetMouseCursor(MOUSE_CURSOR_CROSSHAIR);
         //save
         if (IsKeyUp(KEY_S) || IsKeyUp(KEY_LEFT_CONTROL)) save = false;
         if (!save && IsKeyDown(KEY_S) && IsKeyDown(KEY_LEFT_CONTROL)) {
         //    TakeScreenshot("tmp.png"); // TODO: Fix png size; edge pixels bleeding out
-            FILE* fid=fopen("test.map", "w");
-            for (int i = 0;i < s; ++i){
-                fprintf(fid, "%s\n", strokes[i]->serialize());
-            }
-            
-            fclose(fid);
+            savemap(filename, strokes, s);
             save = true;
         }
 
@@ -424,6 +429,12 @@ int main(void)
         //click
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             bool valid = true;
+            
+            //enable map filename edit
+            if (!mapeditcontrol && CheckCollisionPointRec(mousePoint, mapfilenamebox)) {
+                mapedit = !mapedit;
+                mapeditcontrol = true;
+            }
 
             // disable clicks on tools while drawing
             for (auto& r : cp.rect) {
@@ -461,21 +472,18 @@ int main(void)
                         break;
                     case SHAPE::SELECT:
                     {
-                        // Move;
+                        // Move/copy
                         if (!selectTransient) {
                             for (int i= s-1; i >=0 ;--i) {
                                 if (strokes[i]->intersects(mousePoint)) {
                                     if (IsKeyDown(KEY_LEFT_CONTROL)) {
                                         //copy
-                                    
                                         selectTransient = strokes[i]->clone();
                                         strokes[s++] = selectTransient;
-                                    
                                     } else {
                                         //move
                                         selectTransient = strokes[i];
                                     }
-                                    
                                     break;
                                 }
                             }
@@ -499,6 +507,7 @@ int main(void)
         else if (down && IsMouseButtonUp(MOUSE_BUTTON_LEFT)) {
             bool toolselect = false;
             int i = 0;
+            if (mapeditcontrol) mapeditcontrol = false;
             for (auto& r : cp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
                     SetMouseCursor(MOUSE_CURSOR_DEFAULT);
@@ -537,8 +546,8 @@ int main(void)
             down = false;
             selectTransient = nullptr;
         }
-            
-        p.update(strokes);
+        if (!mapedit)
+            p.update(strokes);
         //----------------------------------------------------------------------------------
         BeginDrawing();
 
@@ -571,7 +580,7 @@ int main(void)
             sp.draw();
       
             if (showhover) {
-                DrawRectangleLinesEx(hover, 7.f, GRAY);  
+                DrawRectangleLinesEx(hover, 5.f, GRAY);  
                 showhover = false;
             }
 
