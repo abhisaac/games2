@@ -12,7 +12,11 @@
 #include "raygui.h"
 // #include <string>
 /*TODO
-* resize tool
+* fix jumping/ collision detection
+* disable/enable tools
+* edit mode vs game mode
+* game pause
+* hot reloading (separate logic vs UI)
 * undo move/resize etc.
 * UUID for objects instead of index in strokes
 * clone
@@ -26,9 +30,9 @@ float max(float x, float y) { return x > y ? x : y;}
 
 
 enum SHAPE {
+    SELECT,
     RECTANGLE,
     CIRCLE,
-    SELECT,
     _SHAPE_SIZE
 } ;
 
@@ -36,11 +40,12 @@ enum SHAPE {
 struct Shape {
     SHAPE shape;
     Color color;
+    Rectangle bounds;
     virtual void push(Vector2 pos) {}
     virtual void draw() {}
     virtual void clear() {}
     virtual bool intersects(Vector2 pos) {return false;}
-    virtual void move(Vector2 dt) {}
+    virtual void move(Vector2 dt) {} 
     virtual char* serialize() { return nullptr;}
     virtual Shape* clone() {return nullptr;}
 };
@@ -54,7 +59,7 @@ struct ShapePicker {
         {0.f, 100.f, 30.f, 30.f} ,
     };
 
-    const char* shapes_str[4] = {"R", "C", "+", "L"};
+    const char* shapes_str[4] = {"+", "R", "C"};
 
     struct {
         Rectangle rect;
@@ -76,7 +81,7 @@ struct ShapePicker {
     }
     ShapePicker()  {
         current.rect = rect[0];
-        current.shape = RECTANGLE;
+        current.shape = SELECT;
     }
     void draw(){
         for (int i = 0; i < N; ++i)
@@ -134,9 +139,11 @@ struct ColorPicker {
     }
 };
 
+
+
 struct RectShape : public Shape {
     Vector2 start, end;
-    Rectangle bounds;
+    
     RectShape() {shape = RECTANGLE;}
     RectShape(Vector2 pos) : start(pos), end(pos) { shape=RECTANGLE;}
     Shape* clone() {
@@ -168,6 +175,39 @@ struct RectShape : public Shape {
     }
     bool intersects(Vector2 pos) {
         return CheckCollisionPointRec(pos, bounds);
+    }
+};
+
+// NE, NW, SE, SW handles
+enum DIRECTION {
+    NW, NE, SE, SW
+} direction;
+struct ResizeTool {
+    const float threshold = 4.f;
+    Shape* elem;
+    ResizeTool(Shape* r) : elem(r) { }
+    Vector2 bottomRight() {
+        return {elem->bounds.x + elem->bounds.width, elem->bounds.y + elem->bounds.height};
+    }
+    Vector2 bottomLeft() {
+        return {elem->bounds.x, elem->bounds.y + elem->bounds.height};
+    }
+    Vector2 topRight() {
+        return {elem->bounds.x + elem->bounds.width, elem->bounds.y};
+    }
+    Vector2 topLeft() {
+        return {elem->bounds.x, elem->bounds.y};
+    }
+    bool isApproxEqual(Vector2 a, Vector2 b) {
+        return (abs(a.x-b.x) < threshold) && (abs(a.y-b.y) < threshold);
+    }
+    bool drag(Vector2 mouse) {
+        bool res = false;
+        if(isApproxEqual(mouse, bottomLeft())) { direction = SW; SetMouseCursor(MOUSE_CURSOR_RESIZE_NESW); res=true;}
+        else if(isApproxEqual(mouse, bottomRight())) { direction = SE; SetMouseCursor(MOUSE_CURSOR_RESIZE_NWSE); res=true;}
+        else if(isApproxEqual(mouse, topLeft())) { direction = NW;  SetMouseCursor(MOUSE_CURSOR_RESIZE_NWSE); res=true;}
+        else if(isApproxEqual(mouse, topRight())) { direction = NE; SetMouseCursor(MOUSE_CURSOR_RESIZE_NESW); res=true;}
+        return res;
     }
 };
 
@@ -362,8 +402,11 @@ int main(void)
     Shape* transient = nullptr;
 
     Shape* selectTransient = nullptr;
+    Shape* resizeTransient = nullptr;
 
     Player p;
+
+    MouseCursor mc;
     loadStrokes(strokes, s);
     char filename[20] = "test.map";
     bool mapedit = false;
@@ -371,8 +414,9 @@ int main(void)
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
         GuiTextBox(mapfilenamebox, filename, 90, mapedit);
-        if (sp.current.shape == SHAPE::SELECT) SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
-        else SetMouseCursor(MOUSE_CURSOR_CROSSHAIR);
+        // if (sp.current.shape == SHAPE::SELECT) SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
+        if (!resizeTransient)
+            SetMouseCursor(MOUSE_CURSOR_DEFAULT);
         //save
         if (IsKeyUp(KEY_S) || IsKeyUp(KEY_LEFT_CONTROL)) save = false;
         if (!save && IsKeyDown(KEY_S) && IsKeyDown(KEY_LEFT_CONTROL)) {
@@ -416,6 +460,60 @@ int main(void)
             }
         }
 
+        if (sp.current.shape == SHAPE::SELECT) {
+             if (resizeTransient) {
+                switch (direction)
+                {
+                case NW:
+                    {
+                        ResizeTool rz(resizeTransient);
+                        auto pivot = rz.bottomRight();
+                        auto b = resizeTransient->bounds;
+                        resizeTransient->bounds = {mousePoint.x, mousePoint.y, pivot.x-mousePoint.x, pivot.y-mousePoint.y};
+                    }
+                    break;
+                case NE:
+                    {
+                        ResizeTool rz(resizeTransient);
+                        auto pivot = rz.bottomLeft();
+                        auto b = resizeTransient->bounds;
+                        resizeTransient->bounds = {pivot.x, mousePoint.y, mousePoint.x-pivot.x, pivot.y-mousePoint.y};
+                    }
+                    break;
+                case SW:
+                    {
+                        ResizeTool rz(resizeTransient);
+                        auto pivot = rz.topRight();
+                        auto b = resizeTransient->bounds;
+                        resizeTransient->bounds = {mousePoint.x, pivot.y, pivot.x-mousePoint.x, mousePoint.y-pivot.y};
+                    }
+                    break;
+                case SE:
+                    {
+                        auto b = resizeTransient->bounds;
+                        resizeTransient->bounds = {b.x, b.y, mousePoint.x-b.x, mousePoint.y-b.y};
+                    }
+                    break;
+                default:
+                    break;
+                }
+                
+             } else {
+                for(int i = 0; i < s; ++i) {
+                    if (strokes[i]->shape == RECTANGLE) {
+                        // if(CheckCollisionPointRec(mousePoint, strokes[i]->bounds)) {
+                            ResizeTool rz(strokes[i]);
+                            if (rz.drag(mousePoint) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+                                resizeTransient = strokes[i];
+                                break;
+                            }
+                        // }
+                    } 
+                }
+             }
+             
+        }
+       
         // cycle through color picker (right click)
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
             cp.next();
@@ -439,14 +537,14 @@ int main(void)
             // disable clicks on tools while drawing
             for (auto& r : cp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
-                    SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+                    // SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     valid = false;
                     break;
                 }
             }
             for (auto& r : sp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
-                    SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+                    // SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     valid = false;
                     break;
                 }
@@ -473,7 +571,7 @@ int main(void)
                     case SHAPE::SELECT:
                     {
                         // Move/copy
-                        if (!selectTransient) {
+                        if (!selectTransient && !resizeTransient) {
                             for (int i= s-1; i >=0 ;--i) {
                                 if (strokes[i]->intersects(mousePoint)) {
                                     if (IsKeyDown(KEY_LEFT_CONTROL)) {
@@ -487,7 +585,7 @@ int main(void)
                                     break;
                                 }
                             }
-                        } else {
+                        } else if (selectTransient){
                             SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
                             selectTransient->move(GetMouseDelta());
                         }
@@ -505,12 +603,13 @@ int main(void)
             down = true;
         }
         else if (down && IsMouseButtonUp(MOUSE_BUTTON_LEFT)) {
+            SetMouseCursor(MOUSE_CURSOR_DEFAULT);
             bool toolselect = false;
             int i = 0;
             if (mapeditcontrol) mapeditcontrol = false;
             for (auto& r : cp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
-                    SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+                    // SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     cp.updateCurrent(i);
                     toolselect = true;  
                     break;
@@ -520,7 +619,7 @@ int main(void)
             i = 0;
             for (auto& r : sp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
-                    SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+                    // SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     sp.current.shape = (SHAPE)i;
                     sp.current.rect = r;
                     toolselect = true;  
@@ -545,6 +644,7 @@ int main(void)
             }
             down = false;
             selectTransient = nullptr;
+            resizeTransient = nullptr;
         }
         if (!mapedit)
             p.update(strokes);
