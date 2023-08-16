@@ -263,17 +263,15 @@ struct Player {
          speedy = 0.0f;
          speedx = 1.f;
          jump = true;
+        pos.x = 130;
+        pos.y = 130;
     }
     Player() : color(ORANGE), pos({130, 130, 30, 30}) {
         reset();
     };
     void update(Shape** objs) {
         auto time = GetFrameTime();
-        if (IsKeyDown(KEY_R)) {
-            pos.x = 130;
-            pos.y = 130;
-            reset();
-        } 
+        
         if (IsKeyDown(KEY_RIGHT)) {
             speedx = 306.f;
         } 
@@ -382,12 +380,8 @@ int main(void)
     ColorPicker cp;
     ShapePicker sp;
 
-   
-
     InitWindow(screenWidth, screenHeight, "!! Game 1 (editor)");
-
     SetTargetFPS(60);
-    
     
     Shape* strokes[100] = {0};
     int s = 0; // stroke counter
@@ -412,7 +406,7 @@ int main(void)
     Shape* contextTransient = nullptr;
     Vector2 contextMenuPosition;
     Player p;
-    
+    bool debug = false;
 
     // MouseCursor mc;
     loadStrokes(strokes, s);
@@ -423,10 +417,19 @@ int main(void)
     {
         GuiTextBox(mapfilenamebox, filename, 90, mapedit);
 
-        
+        if (IsKeyPressed(KEY_D)) debug = !debug;
+
+        if (IsKeyPressed(KEY_R)) {
+            p.reset();
+            clearStrokes(strokes, s);
+            loadStrokes(strokes, s);
+        }
         // if (sp.current.shape == SHAPE::SELECT) SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
-        if (!resizeTransient)
-            SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+        if (!resizeTransient) {
+            if (sp.current.shape == RECTANGLE || sp.current.shape == CIRCLE)  SetMouseCursor(MOUSE_CURSOR_CROSSHAIR);
+            else SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+        }
+            
         //save
         if (IsKeyUp(KEY_S) || IsKeyUp(KEY_LEFT_CONTROL)) save = false;
         if (!save && IsKeyDown(KEY_S) && IsKeyDown(KEY_LEFT_CONTROL)) {
@@ -526,7 +529,6 @@ int main(void)
              
         }
        
-        // cycle through color picker (right click)
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
             // cp.next();
             contextMenu = true;
@@ -692,7 +694,7 @@ int main(void)
             }
             DrawRectangleLines(0, 0, 30, 30, RED);
 
-            if (0) {
+            if (debug) {
                 // debug shape counter
                 char ss[3];
                 sprintf(ss,"%d", s);
@@ -710,6 +712,11 @@ int main(void)
 
             for(int i = 0; i < s; ++i) {
                 strokes[i]->draw();
+                if (debug) {
+                    char ss[3];
+                    sprintf(ss,"%d", i);
+                    DrawText(ss, strokes[i]->bounds.x, strokes[i]->bounds.y-30.f, 25, ORANGE);
+                }
             }
             if (transient)   transient->draw();
             if (selectTransient) DrawRectangleLinesEx(selectTransient->bounds, 4.f, GOLD);
