@@ -5,6 +5,7 @@
 // #include <cstdlib>
 #include <fstream>
 #include <cmath>
+#include <set>
 // #include <sstream>
 // #include <iostream>
 // #include <iostream>
@@ -13,6 +14,8 @@
 // #include <string>
 /*TODO
 * Enemies
+* player animation run/jump etc
+* 
 * fix jumping/ collision detection
 * disable/enable tools
 * edit mode vs game mode
@@ -37,11 +40,25 @@ enum SHAPE {
     _SHAPE_SIZE
 } ;
 
+struct Rectangle2 : Rectangle {
+    Vector2 bottomRight() {
+        return {x + width, y + height};
+    }
+    Vector2 bottomLeft() {
+        return {x, y + height};
+    }
+    Vector2 topRight() {
+        return {x + width, y};
+    }
+    Vector2 topLeft() {
+        return {x, y};
+    }
+};
 
 struct Shape {
     SHAPE shape;
     Color color;
-    Rectangle bounds;
+    Rectangle2 bounds;
     virtual void push(Vector2 pos) {}
     virtual void draw() {}
     virtual void clear() {}
@@ -54,7 +71,7 @@ struct Shape {
 
 struct ShapePicker {
     static const int N = _SHAPE_SIZE;
-    Rectangle rect[N]  {
+    Rectangle2 rect[N]  {
         {0.f, 40.f, 30.f, 30.f},
         {0.f, 70.f, 30.f, 30.f} ,
         {0.f, 100.f, 30.f, 30.f} ,
@@ -63,7 +80,7 @@ struct ShapePicker {
     const char* shapes_str[4] = {"+", "R", "C"};
 
     struct {
-        Rectangle rect;
+        Rectangle2 rect;
         SHAPE shape;
     } current;
     int idx = 0;
@@ -94,7 +111,7 @@ struct ShapePicker {
 
 struct ColorPicker {
     static const int N = 8;
-    Rectangle rect[N]  {
+    Rectangle2 rect[N]  {
         {0.f, 0.f,  28.f, 30.f},
         {30.f, 0.f, 28.f, 30.f} ,
         {60.f, 0.f, 28.f, 30.f} ,
@@ -117,7 +134,7 @@ struct ColorPicker {
     };
 
     struct {
-        Rectangle rect;
+        Rectangle2 rect;
         Color color;
     } current;
 
@@ -139,8 +156,6 @@ struct ColorPicker {
         DrawRectangleLinesEx(current.rect, 4.f, GOLD);  
     }
 };
-
-
 
 struct RectShape : public Shape {
     Vector2 start, end;
@@ -183,34 +198,20 @@ struct RectShape : public Shape {
 enum DIRECTION {
     NW, NE, SE, SW
 } direction;
-struct ResizeTool {
-    const float threshold = 4.f;
-    Shape* elem;
-    ResizeTool(Shape* r) : elem(r) { }
-    Vector2 bottomRight() {
-        return {elem->bounds.x + elem->bounds.width, elem->bounds.y + elem->bounds.height};
-    }
-    Vector2 bottomLeft() {
-        return {elem->bounds.x, elem->bounds.y + elem->bounds.height};
-    }
-    Vector2 topRight() {
-        return {elem->bounds.x + elem->bounds.width, elem->bounds.y};
-    }
-    Vector2 topLeft() {
-        return {elem->bounds.x, elem->bounds.y};
-    }
-    bool isApproxEqual(Vector2 a, Vector2 b) {
-        return (abs(a.x-b.x) < threshold) && (abs(a.y-b.y) < threshold);
-    }
-    bool drag(Vector2 mouse) {
-        bool res = false;
-        if(isApproxEqual(mouse, bottomLeft())) { direction = SW; SetMouseCursor(MOUSE_CURSOR_RESIZE_NESW); res=true;}
-        else if(isApproxEqual(mouse, bottomRight())) { direction = SE; SetMouseCursor(MOUSE_CURSOR_RESIZE_NWSE); res=true;}
-        else if(isApproxEqual(mouse, topLeft())) { direction = NW;  SetMouseCursor(MOUSE_CURSOR_RESIZE_NWSE); res=true;}
-        else if(isApproxEqual(mouse, topRight())) { direction = NE; SetMouseCursor(MOUSE_CURSOR_RESIZE_NESW); res=true;}
-        return res;
-    }
-};
+
+const float threshold = 4.f;
+bool isApproxEqual(Vector2 a, Vector2 b) {
+    return (abs(a.x-b.x) < threshold) && (abs(a.y-b.y) < threshold);
+}
+bool isResizeDrag(Vector2 mouse, Rectangle2 r) {
+    bool res = false;
+    if(isApproxEqual(mouse, r.bottomLeft())) { direction = SW; SetMouseCursor(MOUSE_CURSOR_RESIZE_NESW); res=true;}
+    else if(isApproxEqual(mouse, r.bottomRight())) { direction = SE; SetMouseCursor(MOUSE_CURSOR_RESIZE_NWSE); res=true;}
+    else if(isApproxEqual(mouse, r.topLeft())) { direction = NW;  SetMouseCursor(MOUSE_CURSOR_RESIZE_NWSE); res=true;}
+    else if(isApproxEqual(mouse, r.topRight())) { direction = NE; SetMouseCursor(MOUSE_CURSOR_RESIZE_NESW); res=true;}
+    return res;
+}
+
 
 struct CircleShape : public Shape {
     Vector2 start, end;
@@ -248,12 +249,13 @@ struct CircleShape : public Shape {
         return CheckCollisionPointCircle(pos, start, radius);
     }
 };
+
 const int screenWidth = 1200;
 const int screenHeight = 800;
 
 struct Player {
     Color color;
-    Rectangle pos;
+    Rectangle2 pos;
     float gravity = 300.f;
     float speedy = 0.0f;
     float speedx = 1.f;
@@ -340,7 +342,7 @@ void loadStrokes(Shape** strokes, int& s) {
         // std::stringstream ss(line);
         // line >> type >> data;
         if (strcmp(shape, "RECTANGLE") == 0) {
-            Rectangle r;
+            Rectangle2 r;
             Color c;
             sscanf(data, "%f %f %f %f COLOR %hhd %hhd %hhd %hhd",
                         &r.x, &r.y, &r.width, &r.height,
@@ -393,32 +395,39 @@ int main(void)
     bool save = false;
     bool mapeditcontrol = false;
     bool contextMenu = false;
+    bool debug = false;
 
-    Rectangle hover;
+    Rectangle2 hover;
     bool showhover = false;
 
-    Rectangle rect {350, 10, 40, 10};
+    Rectangle2 rect {350, 10, 40, 10};
     
     Shape* transient = nullptr;
 
-    Shape* selectTransient = nullptr;
-    Shape* resizeTransient = nullptr;
+    std::set<int> selectTransients;// = nullptr;
+    std::set<int> copyTransients;
+    RectShape* resizeTransient = nullptr;
     Shape* contextTransient = nullptr;
+    Shape* multiSelectTransient = nullptr;
     Vector2 contextMenuPosition;
-    Player p;
-    bool debug = false;
 
+    Player p;
+    
     // MouseCursor mc;
     loadStrokes(strokes, s);
     char filename[20] = "test.map";
     bool mapedit = false;
-    Rectangle mapfilenamebox {600, 1, 100, 40};
+    Rectangle2 mapfilenamebox {600, 1, 100, 40};
+
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
+        //map name
         GuiTextBox(mapfilenamebox, filename, 90, mapedit);
 
+        //debug
         if (IsKeyPressed(KEY_D)) debug = !debug;
 
+        //reset
         if (IsKeyPressed(KEY_R)) {
             p.reset();
             clearStrokes(strokes, s);
@@ -426,8 +435,10 @@ int main(void)
         }
         // if (sp.current.shape == SHAPE::SELECT) SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
         if (!resizeTransient) {
-            if (sp.current.shape == RECTANGLE || sp.current.shape == CIRCLE)  SetMouseCursor(MOUSE_CURSOR_CROSSHAIR);
-            else SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+            if (sp.current.shape == RECTANGLE || sp.current.shape == CIRCLE)  
+                SetMouseCursor(MOUSE_CURSOR_CROSSHAIR);
+            else 
+                SetMouseCursor(MOUSE_CURSOR_DEFAULT);
         }
             
         //save
@@ -454,7 +465,9 @@ int main(void)
             if (s<0) s=0;
         }
         
+        // mouse position
         Vector2 mousePoint = GetMousePosition();
+
         //hover on tools
         for (auto& r : cp.rect) {
             if (CheckCollisionPointRec(mousePoint, r)) {
@@ -473,55 +486,48 @@ int main(void)
             }
         }
 
-        if (sp.current.shape == SHAPE::SELECT) {
+        // resize code
+        if (sp.current.shape == SHAPE::SELECT && !contextMenu && !multiSelectTransient) {
              if (resizeTransient) {
-                switch (direction)
-                {
-                case NW:
-                    {
-                        ResizeTool rz(resizeTransient);
-                        auto pivot = rz.bottomRight();
-                        auto b = resizeTransient->bounds;
-                        resizeTransient->bounds = {mousePoint.x, mousePoint.y, pivot.x-mousePoint.x, pivot.y-mousePoint.y};
-                    }
-                    break;
-                case NE:
-                    {
-                        ResizeTool rz(resizeTransient);
-                        auto pivot = rz.bottomLeft();
-                        auto b = resizeTransient->bounds;
-                        resizeTransient->bounds = {pivot.x, mousePoint.y, mousePoint.x-pivot.x, pivot.y-mousePoint.y};
-                    }
-                    break;
-                case SW:
-                    {
-                        ResizeTool rz(resizeTransient);
-                        auto pivot = rz.topRight();
-                        auto b = resizeTransient->bounds;
-                        resizeTransient->bounds = {mousePoint.x, pivot.y, pivot.x-mousePoint.x, mousePoint.y-pivot.y};
-                    }
-                    break;
-                case SE:
-                    {
-                        // pivot is b.x, b.y itself for SE resize
-                        auto b = resizeTransient->bounds;
-                        resizeTransient->bounds = {b.x, b.y, mousePoint.x-b.x, mousePoint.y-b.y};
-                    }
-                    break;
-                default:
-                    break;
-                }
-                
-             } else if (!selectTransient) {
-
+                auto start = resizeTransient->start;
+                auto end = mousePoint;
+                resizeTransient->bounds = {min(start.x,end.x), min(start.y, end.y), abs(end.x-start.x), abs(end.y-start.y)};
+             } else if (selectTransients.empty()) {
                 for(int i = 0; i < s; ++i) {
                     if (strokes[i]->shape == RECTANGLE) {
-                        // if(CheckCollisionPointRec(mousePoint, strokes[i]->bounds)) {
-                            ResizeTool rz(strokes[i]);
-                            if (rz.drag(mousePoint) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-                                resizeTransient = strokes[i];
+                        // if(CheckCollisionPointRec(mousePoint, strokes[i]->bounds)) {    
+                        if (isResizeDrag(mousePoint, strokes[i]->bounds) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+                            resizeTransient = (RectShape*)strokes[i];
+                            switch (direction)
+                            {
+                            case NW:
+                                {
+                                    resizeTransient->start = resizeTransient->bounds.bottomRight();
+                                }
+                                break;
+                            case NE:
+                                {
+                                    resizeTransient->start = resizeTransient->bounds.bottomLeft();
+                                    
+                                }
+                                break;
+                            case SW:
+                                {
+                                    resizeTransient->start = resizeTransient->bounds.topRight();
+                                    
+                                }
+                                break;
+                            case SE:
+                                {
+                                    resizeTransient->start = resizeTransient->bounds.topLeft();
+                                    
+                                }
+                                break;
+                            default:
                                 break;
                             }
+                            break;
+                        }
                         // }
                     } 
                 }
@@ -529,7 +535,8 @@ int main(void)
              
         }
        
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+       // context menu
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && sp.current.shape == SELECT) {
             // cp.next();
             contextMenu = true;
             for(int i = 0; i < s; ++i) {
@@ -543,16 +550,21 @@ int main(void)
             }
         }
 
-        // cycle through shape picker (mouse wheel)
+        // cycle through shape picker (mouse wheel) // TODO: remove this; use it for pan/zoom
         auto wheel = GetMouseWheelMove();
         if (wheel == 1) {sp.prev();}
         if (wheel == -1) {sp.next();}
         
-        //click
+        // left click
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            if (!CheckCollisionPointRec(mousePoint, {contextMenuPosition.x, contextMenuPosition.y, 180, 150}))
-                contextMenu = false;
-            bool valid = true;
+
+            // disable context menu
+            if (!CheckCollisionPointRec(mousePoint, 
+                {contextMenuPosition.x, contextMenuPosition.y, 180, 150})) {
+                        contextMenu = false;
+            }
+
+            bool validClick = true;
             
             //enable map filename edit
             if (!mapeditcontrol && CheckCollisionPointRec(mousePoint, mapfilenamebox)) {
@@ -560,74 +572,109 @@ int main(void)
                 mapeditcontrol = true;
             }
 
-            // disable clicks on tools while drawing
+            // disable starting clicks on tools while drawing
             for (auto& r : cp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
                     // SetMouseCursor(MOUSE_CURSOR_DEFAULT);
-                    valid = false;
+                    validClick = false;
                     break;
                 }
             }
             for (auto& r : sp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
                     // SetMouseCursor(MOUSE_CURSOR_DEFAULT);
-                    valid = false;
+                    validClick = false;
                     break;
                 }
             }
-            if (valid) {
-                if (!transient) {
-                    // TODO: refactor this below
-                    switch (sp.current.shape)
-                    {
-                    case SHAPE::RECTANGLE:
-                    {
+            if (validClick) {
+                
+                // TODO: refactor this below
+                switch (sp.current.shape)
+                {
+                case SHAPE::RECTANGLE:
+                {
+                    if (!transient) {
                         auto ls =  new RectShape(mousePoint);
                         ls->color = cp.current.color;
                         transient = ls;
+                    } else {
+                        transient->push(mousePoint);
                     }
-                        break;
-                    case SHAPE::CIRCLE:
-                    {
+                } break;
+                    
+                case SHAPE::CIRCLE:
+                {
+                    if (!transient) {
                         auto ls =  new CircleShape(mousePoint);
                         ls->color = cp.current.color;
                         transient = ls;
+                    } else {
+                        transient->push(mousePoint);
                     }
-                        break;
-                    case SHAPE::SELECT:
-                    {
-                        // Move/copy
-                        if (!selectTransient && !resizeTransient) {
-                            for (int i= s-1; i >=0 ;--i) {
-                                if (strokes[i]->intersects(mousePoint)) {
-                                    if (IsKeyDown(KEY_LEFT_CONTROL)) {
-                                        //copy
-                                        selectTransient = strokes[i]->clone();
-                                        strokes[s++] = selectTransient;
-                                    } else {
-                                        //move
-                                        selectTransient = strokes[i];
-                                    }
-                                    break;
-                                }
-                            }
-                        } else if (selectTransient){
-                            SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
-                            selectTransient->move(GetMouseDelta());
-                        }
-                        
-                    }
-                        break;
+                } break;
                     
-                    default:
-                        break;
+                case SHAPE::SELECT:
+                if (!contextMenu){
+                    // Move/copy
+                    if (multiSelectTransient) {
+                        multiSelectTransient->push(mousePoint);
+                        selectTransients.clear();
+                        for (int i= s-1; i >=0 ;--i) {
+                            if(CheckCollisionRecs(multiSelectTransient->bounds, strokes[i]->bounds)) {
+                                selectTransients.insert(i);
+                            }
+                        }
                     }
-                } else {
-                    transient->push(mousePoint);
+                    //TODO: fix copy blocks
+                    if (!resizeTransient && selectTransients.empty() ) {
+                        for (int i= s-1; i >=0 ;--i) {
+                            // if(CheckCollisionRecs(multiSelectTransient->bounds, strokes[i]->bounds)) {
+                            if (strokes[i]->intersects(mousePoint)) {
+                                // if (IsKeyDown(KEY_LEFT_CONTROL)) {
+                                //     //copy
+                                //     if (copyTransients.count(i) == 0) {
+                                //         auto newNode = strokes[i]->clone();
+                                //         // selectTransients.insert(s);
+                                //         copyTransients.insert(s);
+                                //         strokes[s++] = newNode;
+                                //         copyTransients.insert(i);
+                                        
+                                //     }
+                                    
+                                // } else {
+                                    //move
+                                    selectTransients.insert(i);
+                                // }
+                                // break;
+                            }
+                        }
+                        if (selectTransients.empty() && !multiSelectTransient) {
+                            selectTransients.clear();
+                            copyTransients.clear();
+                            multiSelectTransient = new RectShape(mousePoint);
+                        }
+                    }
+                    if (!selectTransients.empty() && !multiSelectTransient){
+                        SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
+                        //  if (IsKeyDown(KEY_LEFT_CONTROL)) {
+                        //     for (auto&si : copyTransients)
+                        //     strokes[si]->move(GetMouseDelta());
+                        //  } else {
+                           for (auto&si : selectTransients)
+                            strokes[si]->move(GetMouseDelta());
+                        //  }
+                        
+                    }  
+                } break;
+                
+                default:
+                    break;
                 }
             }
             down = true;
         }
+        // mouse left button up; commit transactions
         else if (down && IsMouseButtonUp(MOUSE_BUTTON_LEFT)) {
             SetMouseCursor(MOUSE_CURSOR_DEFAULT);
             bool toolselect = false;
@@ -669,8 +716,10 @@ int main(void)
                 ++s;
             }
             down = false;
-            selectTransient = nullptr;
+            if (!multiSelectTransient)
+                selectTransients.clear();
             resizeTransient = nullptr;
+            multiSelectTransient = nullptr;
         }
         if (!mapedit)
             p.update(strokes);
@@ -692,13 +741,20 @@ int main(void)
                 // load
                 loadStrokes(strokes, s);
             }
-            DrawRectangleLines(0, 0, 30, 30, RED);
+            // DrawRectangleLines(0, 0, 30, 30, RED);
 
             if (debug) {
                 // debug shape counter
                 char ss[3];
                 sprintf(ss,"%d", s);
                 DrawText(ss, 270, 0, 50, RED);
+            }
+
+            //debug variable
+            if (debug) {
+                char ss[3];
+                sprintf(ss,"%zd", copyTransients.size());
+                DrawText(ss, 1070, 0, 50, YELLOW);
             }
             
             //tools
@@ -719,7 +775,9 @@ int main(void)
                 }
             }
             if (transient)   transient->draw();
-            if (selectTransient) DrawRectangleLinesEx(selectTransient->bounds, 4.f, GOLD);
+            if (resizeTransient) DrawRectangleLinesEx(resizeTransient->bounds, 3.f, GOLD);
+            for (auto&si :selectTransients) DrawRectangleLinesEx(strokes[si]->bounds, 3.f, GOLD);
+            if (multiSelectTransient) DrawRectangleLinesEx(multiSelectTransient->bounds, 3.f, GOLD);
             p.draw();
             if (contextMenu) {
                 if (contextTransient) {
