@@ -24,7 +24,6 @@
 * hot reloading (separate logic vs UI)
 * undo move/resize etc.
 * UUID for objects instead of index in strokes
-* clone
 * grid 
 * texture loading
 */
@@ -224,6 +223,7 @@ struct CircleShape : public Shape {
         tmp->radius = radius;
         tmp->center = center;
         tmp->color = color;
+        tmp->setBounds();
         return tmp;
     }
     void draw() {
@@ -241,11 +241,15 @@ struct CircleShape : public Shape {
     void move (Vector2 dt){
         center.x += dt.x;
         center.y += dt.y;
+        setBounds();
+    }
+    void setBounds(){
+        bounds = {center.x-radius, center.y-radius, radius*2.f, radius*2.f};
     }
     void push(Vector2 newpos) {
         center = newpos;
         radius =  max(abs(center.x-start.x), abs(center.y-start.y));
-        bounds = {center.x-radius, center.y-radius, radius*2.f, radius*2.f};
+        setBounds();
     }
     bool intersects(Vector2 pos) {
         return CheckCollisionPointCircle(pos, center, radius);
@@ -379,6 +383,7 @@ void loadStrokes(Shape** strokes, int& s) {
             tmp->color = c;
             tmp->radius = radius;
             tmp->center = center;
+            tmp->setBounds();
             std::cerr << tmp << std::endl;
             strokes[getNextIdx()] = tmp;
             
@@ -450,7 +455,7 @@ int main(void)
         if (IsKeyPressed(KEY_DELETE)) {
             for(auto&si : selectTransients) {
                 delete strokes[si];
-                strokes[si] = nullptr; // TODO: how to 
+                strokes[si] = nullptr;
             }
             selectTransients.clear();
         }
@@ -624,7 +629,6 @@ int main(void)
             }
             if (validClick) {
                 
-                // TODO: refactor this below
                 switch (sp.current.shape)
                 {
                 case SHAPE::RECTANGLE:
@@ -680,7 +684,6 @@ int main(void)
                                     //move
                                     selectTransients.insert(i);
                                 }
-                                // break;
                             }
                         }
                         if (selectTransients.empty() && !multiSelectTransient) {
@@ -718,7 +721,7 @@ int main(void)
             }
             down = true;
         }
-        // mouse left button up; commit transactions
+        // mouse up; commit transactions
         else if (down && IsMouseButtonUp(MOUSE_BUTTON_LEFT)) {
             copyTransients.clear();
             SetMouseCursor(MOUSE_CURSOR_DEFAULT);
@@ -727,7 +730,6 @@ int main(void)
             if (mapeditcontrol) mapeditcontrol = false;
             for (auto& r : cp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
-                    // SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     cp.updateCurrent(i);
                     toolselect = true;  
                     break;
@@ -737,7 +739,6 @@ int main(void)
             i = 0;
             for (auto& r : sp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
-                    // SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     sp.current.shape = (SHAPE)i;
                     sp.current.rect = r;
                     toolselect = true;  
@@ -767,26 +768,25 @@ int main(void)
         }
         if (!mapedit)
             p.update(strokes);
+        // Clear
+        if (GuiButton({350, 0, 80, 40}, "#0#Clear")) { 
+            //clear
+            clearStrokes(strokes, s);
+        }
+
+        // Load
+        if (GuiButton({350+80, 0, 80, 40}, "#5#Load")) { 
+            //clear
+            clearStrokes(strokes, s);
+            // load
+            loadStrokes(strokes, s);
+        }
+
         //----------------------------------------------------------------------------------
         BeginDrawing();
 
             ClearBackground(BLACK);
-            // Clear
-            if (GuiButton({350, 0, 80, 40}, "#0#Clear")) { 
-                //clear
-                clearStrokes(strokes, s);
-            }
-
-            // Load
-            if (GuiButton({350+80, 0, 80, 40}, "#5#Load")) { 
-                //clear
-                clearStrokes(strokes, s);
-
-                // load
-                loadStrokes(strokes, s);
-            }
-            // DrawRectangleLines(0, 0, 30, 30, RED);
-
+            
             if (debug) {
                 // debug shape counter
                 char ss[3];
