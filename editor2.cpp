@@ -12,6 +12,7 @@
 #include "raygui.h"
 // #include <string>
 /*TODO
+* Enemies
 * fix jumping/ collision detection
 * disable/enable tools
 * edit mode vs game mode
@@ -247,7 +248,8 @@ struct CircleShape : public Shape {
         return CheckCollisionPointCircle(pos, start, radius);
     }
 };
-
+const int screenWidth = 1200;
+const int screenHeight = 800;
 
 struct Player {
     Color color;
@@ -287,6 +289,8 @@ struct Player {
         }
 
         pos.x += speedx * time;
+        if (pos.x+30.f > screenWidth) pos.x = screenWidth-30.f;
+        if (pos.x < 0) pos.x = 0;
         bool collide=  false;
         for (int i  = 0;i < 100; ++i) {
             if (objs[i]) {
@@ -301,6 +305,8 @@ struct Player {
         }
         if (!collide) {
             pos.y += speedy * time;
+            if (pos.y+30.f > screenHeight) pos.y = screenHeight-30.f;
+            if (pos.y < 0) pos.y = 0.f;
             speedy += gravity * time;
         } else {
             speedy = 0.f;
@@ -376,8 +382,7 @@ int main(void)
     ColorPicker cp;
     ShapePicker sp;
 
-    const int screenWidth = 1200;
-    const int screenHeight = 800;
+   
 
     InitWindow(screenWidth, screenHeight, "!! Game 1 (editor)");
 
@@ -393,6 +398,7 @@ int main(void)
     bool down = false;
     bool save = false;
     bool mapeditcontrol = false;
+    bool contextMenu = false;
 
     Rectangle hover;
     bool showhover = false;
@@ -403,10 +409,12 @@ int main(void)
 
     Shape* selectTransient = nullptr;
     Shape* resizeTransient = nullptr;
-
+    Shape* contextTransient = nullptr;
+    Vector2 contextMenuPosition;
     Player p;
+    
 
-    MouseCursor mc;
+    // MouseCursor mc;
     loadStrokes(strokes, s);
     char filename[20] = "test.map";
     bool mapedit = false;
@@ -414,6 +422,8 @@ int main(void)
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
         GuiTextBox(mapfilenamebox, filename, 90, mapedit);
+
+        
         // if (sp.current.shape == SHAPE::SELECT) SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
         if (!resizeTransient)
             SetMouseCursor(MOUSE_CURSOR_DEFAULT);
@@ -490,6 +500,7 @@ int main(void)
                     break;
                 case SE:
                     {
+                        // pivot is b.x, b.y itself for SE resize
                         auto b = resizeTransient->bounds;
                         resizeTransient->bounds = {b.x, b.y, mousePoint.x-b.x, mousePoint.y-b.y};
                     }
@@ -498,7 +509,8 @@ int main(void)
                     break;
                 }
                 
-             } else {
+             } else if (!selectTransient) {
+
                 for(int i = 0; i < s; ++i) {
                     if (strokes[i]->shape == RECTANGLE) {
                         // if(CheckCollisionPointRec(mousePoint, strokes[i]->bounds)) {
@@ -516,7 +528,17 @@ int main(void)
        
         // cycle through color picker (right click)
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-            cp.next();
+            // cp.next();
+            contextMenu = true;
+            for(int i = 0; i < s; ++i) {
+                if (strokes[i]->shape == RECTANGLE) {
+                    if(CheckCollisionPointRec(mousePoint, strokes[i]->bounds)) {
+                        contextMenuPosition = mousePoint;
+                        contextTransient = strokes[i];
+                    }
+                        
+                }
+            }
         }
 
         // cycle through shape picker (mouse wheel)
@@ -526,6 +548,8 @@ int main(void)
         
         //click
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            if (!CheckCollisionPointRec(mousePoint, {contextMenuPosition.x, contextMenuPosition.y, 180, 150}))
+                contextMenu = false;
             bool valid = true;
             
             //enable map filename edit
@@ -688,7 +712,13 @@ int main(void)
                 strokes[i]->draw();
             }
             if (transient)   transient->draw();
+            if (selectTransient) DrawRectangleLinesEx(selectTransient->bounds, 4.f, GOLD);
             p.draw();
+            if (contextMenu) {
+                if (contextTransient) {
+                    GuiColorPicker({contextMenuPosition.x, contextMenuPosition.y, 150, 150}, "ll", &contextTransient->color);
+                }
+            }
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
