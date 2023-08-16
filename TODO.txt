@@ -1,4 +1,5 @@
 * ztype [DONE]
+* paint [DONE]
 * music visualizer
 * 2d pacman
 * 2d platformer
@@ -8,10 +9,8 @@
 * 2d fruit ninja
 * 3d camera FPS
 * 3d duck hunt
-* paint [DONE]
 * shaders
 * opengl Win32
-* game physics
-* level editor 2d (based on paint)
-* save levels - serialize in/out game levels/maps
-* grid on/off for editor
+* raycasting game 2d (doom/wolfenstein)
+* editor ...
+

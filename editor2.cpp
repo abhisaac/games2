@@ -6,9 +6,10 @@
 #include <fstream>
 #include <cmath>
 #include <set>
+#include <cassert>
 // #include <sstream>
-// #include <iostream>
-// #include <iostream>
+#include <iostream>
+
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
 // #include <string>
@@ -214,45 +215,56 @@ bool isResizeDrag(Vector2 mouse, Rectangle2 r) {
 
 
 struct CircleShape : public Shape {
-    Vector2 start, end;
+    Vector2 start, center;
     float radius;
     CircleShape() {shape = CIRCLE;}
-    CircleShape(Vector2 pos) : start(pos), end(pos) {shape = CIRCLE;}
+    CircleShape(Vector2 pos) : start(pos), center(pos) {shape = CIRCLE;}
     Shape* clone() {
         auto* tmp = new CircleShape;
         tmp->radius = radius;
-        tmp->start = start;
+        tmp->center = center;
         tmp->color = color;
         return tmp;
     }
     void draw() {
-        DrawCircle(start.x, start.y, radius, color);
+        DrawCircle(center.x, center.y, radius, color);
     }
     void clear() {
         
     }
     char* serialize() {
         char* out = (char*) malloc(100*sizeof(char));
-        sprintf(out, "CIRCLE %f %f %f COLOR %u %u %u %u", start.x, start.y, radius,
+        sprintf(out, "CIRCLE %f %f %f COLOR %u %u %u %u", center.x, center.y, radius,
                         color.r, color.g, color.b, color.a);
         return out;
     }
     void move (Vector2 dt){
-        start.x += dt.x;
-        start.y += dt.y;
+        center.x += dt.x;
+        center.y += dt.y;
     }
     void push(Vector2 newpos) {
-        end = newpos;
-        radius =  max(abs(end.x-start.x), abs(end.y-start.y));
+        center = newpos;
+        radius =  max(abs(center.x-start.x), abs(center.y-start.y));
+        bounds = {center.x-radius, center.y-radius, radius*2.f, radius*2.f};
     }
     bool intersects(Vector2 pos) {
-        return CheckCollisionPointCircle(pos, start, radius);
+        return CheckCollisionPointCircle(pos, center, radius);
     }
 };
 
 const int screenWidth = 1200;
 const int screenHeight = 800;
 
+// Object pool
+#define SN 200
+Shape* strokes[SN] = {0};
+
+int getNextIdx() {
+    int i = 0;
+    while (i<SN && strokes[i] != nullptr) {++i;}
+    assert(i < SN);
+    return i;
+}
 struct Player {
     Color color;
     Rectangle2 pos;
@@ -292,7 +304,7 @@ struct Player {
         if (pos.x+30.f > screenWidth) pos.x = screenWidth-30.f;
         if (pos.x < 0) pos.x = 0;
         bool collide=  false;
-        for (int i  = 0;i < 100; ++i) {
+        for (int i  = 0;i < SN; ++i) {
             if (objs[i]) {
                 RectShape* tmp = (RectShape*)objs[i];
                 if (CheckCollisionPointRec({pos.x, pos.y + 30.f}, tmp->bounds)) {
@@ -321,9 +333,12 @@ struct Player {
 };
 
 void clearStrokes(Shape** strokes, int&s) {
-    for (int i = 0; i < s; ++i) {
-        delete(strokes[i]);
-        strokes[i] = nullptr;
+    for (int i = 0; i < SN; ++i) {
+        if (strokes[i]) {
+            delete(strokes[i]);
+            strokes[i] = nullptr;
+        }
+        
     }
     s = 0;
 }
@@ -347,11 +362,12 @@ void loadStrokes(Shape** strokes, int& s) {
             sscanf(data, "%f %f %f %f COLOR %hhd %hhd %hhd %hhd",
                         &r.x, &r.y, &r.width, &r.height,
                         &c.r, &c.g, &c.b, &c.a);
-            auto tmp = new RectShape();
+            auto* tmp = new RectShape();
             tmp->color = c;
             tmp->bounds = r;
-            strokes[s++] = tmp;
-            // std::cout << "RECT" << std::endl;
+            std::cerr << tmp << std::endl;
+            strokes[getNextIdx()] = tmp;
+            
         } else if (strcmp(shape,"CIRCLE")==0) {
             Vector2 center;
             float radius;
@@ -359,33 +375,36 @@ void loadStrokes(Shape** strokes, int& s) {
             sscanf(data, "%f %f %f COLOR %hhd %hhd %hhd %hhd",
                         &center.x, &center.y, &radius,
                         &c.r, &c.g, &c.b, &c.a);
-            auto tmp = new CircleShape();
+            auto* tmp = new CircleShape();
             tmp->color = c;
             tmp->radius = radius;
-            tmp->start = center;
-            strokes[s++] = tmp;
-            // std::cout << "CIRC" << std::endl;
+            tmp->center = center;
+            std::cerr << tmp << std::endl;
+            strokes[getNextIdx()] = tmp;
+            
         }
     }
 }
 void savemap(char* filename, Shape** strokes, int& s) {
 
     FILE* fid=fopen(filename, "w");
-    for (int i = 0;i < s; ++i){
-        fprintf(fid, "%s\n", strokes[i]->serialize());
+    for (int i = 0;i < SN; ++i){
+        if (strokes[i])
+            fprintf(fid, "%s\n", strokes[i]->serialize());
     }
     
     fclose(fid);
 }
 int main(void)
 {
+    
     ColorPicker cp;
     ShapePicker sp;
 
     InitWindow(screenWidth, screenHeight, "!! Game 1 (editor)");
     SetTargetFPS(60);
     
-    Shape* strokes[100] = {0};
+    
     int s = 0; // stroke counter
     
     // avoid multiple key stroke updates with these bools
@@ -404,16 +423,16 @@ int main(void)
     
     Shape* transient = nullptr;
 
-    std::set<int> selectTransients;// = nullptr;
+    std::set<int> selectTransients;
     std::set<int> copyTransients;
     RectShape* resizeTransient = nullptr;
     Shape* contextTransient = nullptr;
     Shape* multiSelectTransient = nullptr;
     Vector2 contextMenuPosition;
+    Shape* hoverTransient = nullptr;
 
     Player p;
     
-    // MouseCursor mc;
     loadStrokes(strokes, s);
     char filename[20] = "test.map";
     bool mapedit = false;
@@ -427,13 +446,21 @@ int main(void)
         //debug
         if (IsKeyPressed(KEY_D)) debug = !debug;
 
+        // delete
+        if (IsKeyPressed(KEY_DELETE)) {
+            for(auto&si : selectTransients) {
+                delete strokes[si];
+                strokes[si] = nullptr; // TODO: how to 
+            }
+            selectTransients.clear();
+        }
         //reset
         if (IsKeyPressed(KEY_R)) {
             p.reset();
             clearStrokes(strokes, s);
             loadStrokes(strokes, s);
         }
-        // if (sp.current.shape == SHAPE::SELECT) SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
+        
         if (!resizeTransient) {
             if (sp.current.shape == RECTANGLE || sp.current.shape == CIRCLE)  
                 SetMouseCursor(MOUSE_CURSOR_CROSSHAIR);
@@ -448,7 +475,7 @@ int main(void)
             savemap(filename, strokes, s);
             save = true;
         }
-
+//TODO: fix undo/redo to work with object pool/getNextIdx
         //redo
         if (IsKeyUp(KEY_Y) || IsKeyUp(KEY_LEFT_CONTROL)) isredo = false;
         else if (!isredo && IsKeyDown(KEY_Y) && IsKeyDown(KEY_LEFT_CONTROL)) {
@@ -485,6 +512,29 @@ int main(void)
                 break;
             }
         }
+        bool ishover = false;
+        if (sp.current.shape == SHAPE::SELECT) {
+            for (auto& si: strokes) {
+                if (!si) continue;
+                if (si->shape == CIRCLE) {
+                    auto* tmp = (CircleShape*)si;
+                    if (CheckCollisionPointCircle(mousePoint, tmp->center, tmp->radius)) {
+                        ishover = true;
+                        hoverTransient = si;
+                        break;
+                    }
+                } else if (si->shape == RECTANGLE) {
+                    auto* tmp = (RectShape*)si;
+                    if (CheckCollisionPointRec(mousePoint, si->bounds)) {
+                        ishover = true;
+                        hoverTransient = si;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (!ishover) hoverTransient = nullptr;
 
         // resize code
         if (sp.current.shape == SHAPE::SELECT && !contextMenu && !multiSelectTransient) {
@@ -493,42 +543,28 @@ int main(void)
                 auto end = mousePoint;
                 resizeTransient->bounds = {min(start.x,end.x), min(start.y, end.y), abs(end.x-start.x), abs(end.y-start.y)};
              } else if (selectTransients.empty()) {
-                for(int i = 0; i < s; ++i) {
+                for(int i = 0; i < SN; ++i) {
+                    if (!strokes[i]) continue;
                     if (strokes[i]->shape == RECTANGLE) {
-                        // if(CheckCollisionPointRec(mousePoint, strokes[i]->bounds)) {    
+                         
                         if (isResizeDrag(mousePoint, strokes[i]->bounds) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
                             resizeTransient = (RectShape*)strokes[i];
                             switch (direction)
                             {
-                            case NW:
-                                {
-                                    resizeTransient->start = resizeTransient->bounds.bottomRight();
-                                }
+                            case NW: resizeTransient->start = resizeTransient->bounds.bottomRight();
                                 break;
-                            case NE:
-                                {
-                                    resizeTransient->start = resizeTransient->bounds.bottomLeft();
-                                    
-                                }
+                            case NE: resizeTransient->start = resizeTransient->bounds.bottomLeft();
                                 break;
-                            case SW:
-                                {
-                                    resizeTransient->start = resizeTransient->bounds.topRight();
-                                    
-                                }
+                            case SW: resizeTransient->start = resizeTransient->bounds.topRight();
                                 break;
-                            case SE:
-                                {
-                                    resizeTransient->start = resizeTransient->bounds.topLeft();
-                                    
-                                }
+                            case SE: resizeTransient->start = resizeTransient->bounds.topLeft();
                                 break;
                             default:
                                 break;
                             }
                             break;
                         }
-                        // }
+                        
                     } 
                 }
              }
@@ -539,7 +575,8 @@ int main(void)
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && sp.current.shape == SELECT) {
             // cp.next();
             contextMenu = true;
-            for(int i = 0; i < s; ++i) {
+            for(int i = 0; i < SN; ++i) {
+                if (!strokes[i]) continue;
                 if (strokes[i]->shape == RECTANGLE) {
                     if(CheckCollisionPointRec(mousePoint, strokes[i]->bounds)) {
                         contextMenuPosition = mousePoint;
@@ -575,14 +612,12 @@ int main(void)
             // disable starting clicks on tools while drawing
             for (auto& r : cp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
-                    // SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     validClick = false;
                     break;
                 }
             }
             for (auto& r : sp.rect) {
                 if (CheckCollisionPointRec(mousePoint, r)) {
-                    // SetMouseCursor(MOUSE_CURSOR_DEFAULT);
                     validClick = false;
                     break;
                 }
@@ -620,32 +655,31 @@ int main(void)
                     if (multiSelectTransient) {
                         multiSelectTransient->push(mousePoint);
                         selectTransients.clear();
-                        for (int i= s-1; i >=0 ;--i) {
+                        for (int i= SN-1; i >=0 ;--i) {
+                            if (!strokes[i]) continue;
                             if(CheckCollisionRecs(multiSelectTransient->bounds, strokes[i]->bounds)) {
                                 selectTransients.insert(i);
                             }
                         }
                     }
-                    //TODO: fix copy blocks
+                    // TODO: copy is moving original blocks; check this
                     if (!resizeTransient && selectTransients.empty() ) {
-                        for (int i= s-1; i >=0 ;--i) {
-                            // if(CheckCollisionRecs(multiSelectTransient->bounds, strokes[i]->bounds)) {
+                        for (int i= SN-1; i >=0 ;--i) {
+                            if (!strokes[i]) continue;
                             if (strokes[i]->intersects(mousePoint)) {
-                                // if (IsKeyDown(KEY_LEFT_CONTROL)) {
-                                //     //copy
-                                //     if (copyTransients.count(i) == 0) {
-                                //         auto newNode = strokes[i]->clone();
-                                //         // selectTransients.insert(s);
-                                //         copyTransients.insert(s);
-                                //         strokes[s++] = newNode;
-                                //         copyTransients.insert(i);
-                                        
-                                //     }
+                                if (IsKeyDown(KEY_LEFT_CONTROL)) {
+                                    //copy
+                                    if (copyTransients.count(i) == 0) {
+                                        auto newNode = strokes[i]->clone();
+                                        selectTransients.insert(s);
+                                        strokes[getNextIdx()] = newNode;
+                                        copyTransients.insert(i);
+                                    }
                                     
-                                // } else {
+                                } else {
                                     //move
                                     selectTransients.insert(i);
-                                // }
+                                }
                                 // break;
                             }
                         }
@@ -657,13 +691,23 @@ int main(void)
                     }
                     if (!selectTransients.empty() && !multiSelectTransient){
                         SetMouseCursor(MOUSE_CURSOR_POINTING_HAND);
-                        //  if (IsKeyDown(KEY_LEFT_CONTROL)) {
-                        //     for (auto&si : copyTransients)
-                        //     strokes[si]->move(GetMouseDelta());
-                        //  } else {
+                         if (IsKeyDown(KEY_LEFT_CONTROL)) {
+                            if (copyTransients.empty()) {
+                                for (auto&si : selectTransients) {
+                                    if (copyTransients.count(si) == 0) {
+                                        auto newNode = strokes[si]->clone();
+                                        strokes[getNextIdx()] = newNode;
+                                        copyTransients.insert(si);
+                                    }
+                                }
+                            }
+                            
+                            for (auto&si : copyTransients)
+                                strokes[si]->move(GetMouseDelta());
+                         } else {
                            for (auto&si : selectTransients)
-                            strokes[si]->move(GetMouseDelta());
-                        //  }
+                                strokes[si]->move(GetMouseDelta());
+                         }
                         
                     }  
                 } break;
@@ -676,6 +720,7 @@ int main(void)
         }
         // mouse left button up; commit transactions
         else if (down && IsMouseButtonUp(MOUSE_BUTTON_LEFT)) {
+            copyTransients.clear();
             SetMouseCursor(MOUSE_CURSOR_DEFAULT);
             bool toolselect = false;
             int i = 0;
@@ -703,17 +748,16 @@ int main(void)
             if (!toolselect && transient) {
                 //commit transaction
 
-                // cleanup redo stack
-                int i = s;
-                while(strokes[i++]) {
-                    delete(strokes[i]);
-                    strokes[i] = nullptr;
-                }
+                // // cleanup redo stack
+                // int i = s;
+                // while(strokes[i++]) {
+                //     delete(strokes[i]);
+                //     strokes[i] = nullptr;
+                // }
 
                 //commit
-                strokes[s] = transient;
+                strokes[getNextIdx()] = transient;
                 transient = nullptr;
-                ++s;
             }
             down = false;
             if (!multiSelectTransient)
@@ -746,7 +790,9 @@ int main(void)
             if (debug) {
                 // debug shape counter
                 char ss[3];
-                sprintf(ss,"%d", s);
+                int i = 0;
+                for (auto&si:strokes) if (si) ++i;
+                sprintf(ss,"%d", i);
                 DrawText(ss, 270, 0, 50, RED);
             }
 
@@ -766,18 +812,23 @@ int main(void)
                 showhover = false;
             }
 
-            for(int i = 0; i < s; ++i) {
+            for(int i = 0; i < SN; ++i) {
+                if (!strokes[i]) continue;
                 strokes[i]->draw();
                 if (debug) {
-                    char ss[3];
+                    char ss[4];
                     sprintf(ss,"%d", i);
+                    // char ss[30];
+                    // sprintf(ss,"0x%p", strokes[i]);
                     DrawText(ss, strokes[i]->bounds.x, strokes[i]->bounds.y-30.f, 25, ORANGE);
                 }
             }
             if (transient)   transient->draw();
+            
+            for (auto&si :selectTransients) if (si) DrawRectangleLinesEx(strokes[si]->bounds, 3.f, GOLD);
             if (resizeTransient) DrawRectangleLinesEx(resizeTransient->bounds, 3.f, GOLD);
-            for (auto&si :selectTransients) DrawRectangleLinesEx(strokes[si]->bounds, 3.f, GOLD);
-            if (multiSelectTransient) DrawRectangleLinesEx(multiSelectTransient->bounds, 3.f, GOLD);
+            else if (multiSelectTransient) DrawRectangleLinesEx(multiSelectTransient->bounds, 3.f, GOLD);
+            else if (hoverTransient)  DrawRectangleLinesEx(hoverTransient->bounds, 2.f, WHITE);
             p.draw();
             if (contextMenu) {
                 if (contextTransient) {
