@@ -66,8 +66,8 @@ struct Board  {
         remaining = GRID_SIZE*GRID_SIZE;
     }
     Board() {
-        xt = LoadTexture("x.png"); 
-        ot = LoadTexture("o.png"); 
+        xt = LoadTexture("assets/x.png"); 
+        ot = LoadTexture("assets/o.png"); 
         reset();
     }
     void undo () {

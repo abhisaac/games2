@@ -155,11 +155,11 @@ int main()
   
   InitWindow(GameConstants::SIZEX, GameConstants::SIZEY, "!! Asteroids");
   
-  enemyTex[0] = LoadTexture("e1.png");
-  enemyTex[1] = LoadTexture("e2.png");
-  enemyTex[2] = LoadTexture("e3.png");
-  enemyTex[3] = LoadTexture("e4.png");
-  enemyTex[4] = LoadTexture("e5.png");
+  enemyTex[0] = LoadTexture("assets/e1.png");
+  enemyTex[1] = LoadTexture("assets/e2.png");
+  enemyTex[2] = LoadTexture("assets/e3.png");
+  enemyTex[3] = LoadTexture("assets/e4.png");
+  enemyTex[4] = LoadTexture("assets/e5.png");
   SetTargetFPS(60);
   
   // Enemies
@@ -175,7 +175,7 @@ int main()
  
   
   {
-    Sprite ship("fighter.png");
+    Sprite ship("assets/fighter.png");
     bool gameover = false;
     while (!WindowShouldClose())
     {

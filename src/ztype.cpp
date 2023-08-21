@@ -69,7 +69,7 @@ struct Game {
         reset();
     }
     void readWords() {
-        words = loadFile("dict.txt");
+        words = loadFile("assets/dict.txt");
     }
     void addTarget() {
        std::random_device rd; // source of randomness

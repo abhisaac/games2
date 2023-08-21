@@ -8,15 +8,13 @@
 #include <set>
 #include <cassert>
 // #include <sstream>
-#include <iostream>
+// #include <iostream>
 
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
 // #include <string>
 /*TODO
 * Enemies
-* player animation run/jump etc
-* 
 * fix jumping/ collision detection
 * disable/enable tools
 * edit mode vs game mode
@@ -25,7 +23,6 @@
 * undo move/resize etc.
 * UUID for objects instead of index in objs
 * grid 
-* texture loading
 */
 
 //helpers
@@ -283,7 +280,7 @@ struct Player {
     int frame = 0;
     const int SPRITE_FRAMES = 5;
     
-    float updateTime = 1.0/12.0;
+    float updateTime = 1.0/10.0;
     float runningTime = 0.0;
 
     void reset () {
@@ -295,7 +292,7 @@ struct Player {
         pos.y = 130;
     }
     Player() : color(ORANGE) {
-        hero  =  LoadTexture("sprite.png");
+        hero  =  LoadTexture("assets/sprite.png");
         heroRec.width = hero.width/SPRITE_FRAMES;
         heroRec.height = hero.height;
         heroRec.x = 0;
@@ -353,13 +350,24 @@ struct Player {
         bool collide=  false;
         for (int i  = 0;i < SN; ++i) {
             if (objs[i]) {
-                RectShape* tmp = (RectShape*)objs[i];
-                if (CheckCollisionPointRec({pos.x, pos.y + heroRec.height}, tmp->bounds)) {
-                    pos.y = tmp->bounds.y-heroRec.height;
-                    collide = true;
-                    jump = false;
-                    break;
+                if (objs[i]->shape == RECTANGLE) {
+                    RectShape* tmp = (RectShape*)objs[i];
+                    if (CheckCollisionPointRec({pos.x, pos.y + heroRec.height}, tmp->bounds)) {
+                        pos.y = tmp->bounds.y-heroRec.height;
+                        collide = true;
+                        jump = false;
+                        break;
+                    }
+                } else if (objs[i]->shape == CIRCLE) {
+                    CircleShape* tmp = (CircleShape*)objs[i];
+                    if (CheckCollisionPointCircle({pos.x, pos.y + heroRec.height}, tmp->center, tmp->radius)) {
+                        pos.y = tmp->bounds.y-heroRec.height;
+                        collide = true;
+                        jump = false;
+                        break;
+                    }
                 }
+                
             }
         }
         if (!collide) {
@@ -413,7 +421,7 @@ void loadStrokes(Shape** objs, int& s) {
             auto* tmp = new RectShape();
             tmp->color = c;
             tmp->bounds = r;
-            std::cerr << tmp << std::endl;
+            // std::cerr << tmp << std::endl;
             objs[getNextIdx()] = tmp;
             
         } else if (strcmp(shape,"CIRCLE")==0) {
@@ -428,7 +436,7 @@ void loadStrokes(Shape** objs, int& s) {
             tmp->radius = radius;
             tmp->center = center;
             tmp->setBounds();
-            std::cerr << tmp << std::endl;
+            // std::cerr << tmp << std::endl;
             objs[getNextIdx()] = tmp;
             
         }
