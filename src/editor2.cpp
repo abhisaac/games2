@@ -52,7 +52,28 @@ struct Rectangle2 : Rectangle {
     }
 };
 
+
+
+// NE, NW, SE, SW handles
+enum DIRECTION {
+    NW, NE, SE, SW
+} direction;
+
+// const float threshold = 4.f;
+bool isApproxEqual(Vector2 a, Vector2 b, float threshold) {
+    return (abs(a.x-b.x) < threshold) && (abs(a.y-b.y) < threshold);
+}
+bool isResizeDrag(Vector2 mouse, Rectangle2 r, float threshold = 4.f) {
+    bool res = false;
+    if      (isApproxEqual(mouse, r.bottomLeft(), threshold))    { direction = SW; SetMouseCursor(MOUSE_CURSOR_RESIZE_NESW); res=true;}
+    else if (isApproxEqual(mouse, r.bottomRight(), threshold))   { direction = SE; SetMouseCursor(MOUSE_CURSOR_RESIZE_NWSE); res=true;}
+    else if (isApproxEqual(mouse, r.topLeft(), threshold))       { direction = NW; SetMouseCursor(MOUSE_CURSOR_RESIZE_NWSE); res=true;}
+    else if (isApproxEqual(mouse, r.topRight(), threshold))      { direction = NE; SetMouseCursor(MOUSE_CURSOR_RESIZE_NESW); res=true;}
+    return res;
+}
+
 struct Shape {
+    Vector2 start, end;
     SHAPE shape;
     Color color;
     Rectangle2 bounds;
@@ -63,6 +84,25 @@ struct Shape {
     virtual void move(Vector2 dt) {} 
     virtual char* serialize() { return nullptr;}
     virtual Shape* clone() {return nullptr;}
+    void resizeInit() {
+        switch (direction)
+        {
+        case NW: start = bounds.bottomRight();
+            break;
+        case NE: start = bounds.bottomLeft();
+            break;
+        case SW: start = bounds.topRight();
+            break;
+        case SE: start = bounds.topLeft();
+            break;
+        default:
+            break;
+        }
+    }
+    virtual void resize(Vector2 mousePoint) {}
+    bool isHovering(Vector2 mousePoint) {
+        return CheckCollisionPointRec(mousePoint, bounds);
+    }
 };
 
 
@@ -154,11 +194,12 @@ struct ColorPicker {
     }
 };
 
+
+
+Shape* resizeTransient = nullptr;
 struct RectShape : public Shape {
-    Vector2 start, end;
-    
     RectShape() {shape = RECTANGLE;}
-    RectShape(Vector2 pos) : start(pos), end(pos) { shape=RECTANGLE;}
+    RectShape(Vector2 pos) { start = pos; end = pos; shape=RECTANGLE;}
     Shape* clone() {
         auto* tmp = new RectShape;
         tmp->bounds = bounds;
@@ -189,32 +230,19 @@ struct RectShape : public Shape {
     bool intersects(Vector2 pos) {
         return CheckCollisionPointRec(pos, bounds);
     }
+    
+    void resize(Vector2 mousePoint) {
+        end = mousePoint;
+        bounds = {min(start.x,end.x), min(start.y, end.y), abs(end.x-start.x), abs(end.y-start.y)};
+    }
 };
-
-// NE, NW, SE, SW handles
-enum DIRECTION {
-    NW, NE, SE, SW
-} direction;
-
-const float threshold = 4.f;
-bool isApproxEqual(Vector2 a, Vector2 b) {
-    return (abs(a.x-b.x) < threshold) && (abs(a.y-b.y) < threshold);
-}
-bool isResizeDrag(Vector2 mouse, Rectangle2 r) {
-    bool res = false;
-    if(isApproxEqual(mouse, r.bottomLeft())) { direction = SW; SetMouseCursor(MOUSE_CURSOR_RESIZE_NESW); res=true;}
-    else if(isApproxEqual(mouse, r.bottomRight())) { direction = SE; SetMouseCursor(MOUSE_CURSOR_RESIZE_NWSE); res=true;}
-    else if(isApproxEqual(mouse, r.topLeft())) { direction = NW;  SetMouseCursor(MOUSE_CURSOR_RESIZE_NWSE); res=true;}
-    else if(isApproxEqual(mouse, r.topRight())) { direction = NE; SetMouseCursor(MOUSE_CURSOR_RESIZE_NESW); res=true;}
-    return res;
-}
 
 
 struct CircleShape : public Shape {
-    Vector2 start, center;
+    Vector2 center;
     float radius;
     CircleShape() {shape = CIRCLE;}
-    CircleShape(Vector2 pos) : start(pos), center(pos) {shape = CIRCLE;}
+    CircleShape(Vector2 pos) : center(pos) {shape = CIRCLE;}
     Shape* clone() {
         auto* tmp = new CircleShape;
         tmp->radius = radius;
@@ -250,6 +278,13 @@ struct CircleShape : public Shape {
     }
     bool intersects(Vector2 pos) {
         return CheckCollisionPointCircle(pos, center, radius);
+    }
+    
+    void resize(Vector2 mousePoint) {
+        end = mousePoint;
+        bounds = {min(start.x,end.x), min(start.y, end.y), abs(end.x-start.x), abs(end.y-start.y)};
+        radius = min(bounds.width, bounds.height)/2.;
+        center = {bounds.x + bounds.width/2.f, bounds.y + bounds.height/2.f};
     }
 };
 
@@ -483,7 +518,7 @@ int main(void)
 
     std::set<int> selectTransients;
     std::set<int> copyTransients;
-    RectShape* resizeTransient = nullptr;
+
     Shape* contextTransient = nullptr;
     Shape* multiSelectTransient = nullptr;
     Vector2 contextMenuPosition;
@@ -570,8 +605,13 @@ int main(void)
                 break;
             }
         }
+
         bool ishover = false;
-        if (sp.current.shape == SHAPE::SELECT) {
+        if (hoverTransient && hoverTransient->isHovering(mousePoint)) {
+            ishover = true;
+        }
+        
+        if (!ishover && sp.current.shape == SHAPE::SELECT) {
             for (auto& si: objs) {
                 if (!si) continue;
                 if (si->shape == CIRCLE) {
@@ -597,36 +637,18 @@ int main(void)
         // resize code
         if (sp.current.shape == SHAPE::SELECT && !contextMenu && !multiSelectTransient) {
              if (resizeTransient) {
-                auto start = resizeTransient->start;
-                auto end = mousePoint;
-                resizeTransient->bounds = {min(start.x,end.x), min(start.y, end.y), abs(end.x-start.x), abs(end.y-start.y)};
+                resizeTransient->resize(mousePoint);
              } else if (selectTransients.empty()) {
                 for(int i = 0; i < SN; ++i) {
                     if (!objs[i]) continue;
-                    if (objs[i]->shape == RECTANGLE) {
-                         
-                        if (isResizeDrag(mousePoint, objs[i]->bounds) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-                            resizeTransient = (RectShape*)objs[i];
-                            switch (direction)
-                            {
-                            case NW: resizeTransient->start = resizeTransient->bounds.bottomRight();
-                                break;
-                            case NE: resizeTransient->start = resizeTransient->bounds.bottomLeft();
-                                break;
-                            case SW: resizeTransient->start = resizeTransient->bounds.topRight();
-                                break;
-                            case SE: resizeTransient->start = resizeTransient->bounds.topLeft();
-                                break;
-                            default:
-                                break;
-                            }
-                            break;
-                        }
-                        
-                    } 
+
+                    if (isResizeDrag(mousePoint, objs[i]->bounds) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+                        resizeTransient = objs[i];
+                        resizeTransient->resizeInit();
+                        break;
+                    }
                 }
              }
-             
         }
        
        // context menu
