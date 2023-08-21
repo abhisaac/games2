@@ -4,24 +4,9 @@
 		{
 			"type": "cppbuild",
 			"label": "My windows build",
-			"command": "cl.exe",
+			"command": "build.bat",
 			"args": [
-				"/Zi",
-				"/EHsc",
-				"/MD",
-				"/nologo",
-				"/std:c++17",
 				"${file}",
-				"raylib.lib",
-				"opengl32.lib",
-				"winmm.lib",
-				"gdi32.lib",
-				"shell32.lib",
-				"user32.lib",
-				"/Foobj\\",
-				"/Fdbuild\\",
-				"/Febuild/out.exe"
-				
 			],
 			"options": {
 				"cwd": "${workspaceFolder}"
