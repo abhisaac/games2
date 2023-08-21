@@ -272,8 +272,8 @@ struct CircleShape : public Shape {
         bounds = {center.x-radius, center.y-radius, radius*2.f, radius*2.f};
     }
     void push(Vector2 newpos) {
-        center = newpos;
-        radius =  max(abs(center.x-start.x), abs(center.y-start.y));
+        // center = newpos;
+        radius =  max(abs(center.x-newpos.x), abs(center.y-newpos.y));
         setBounds();
     }
     bool intersects(Vector2 pos) {
