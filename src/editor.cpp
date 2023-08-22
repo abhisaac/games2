@@ -533,7 +533,7 @@ int main(void)
     Rectangle2 mapfilenamebox {600, 1, 100, 40};
 
     bool drawGrid = false;
-
+    bool selected = false;
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
         //map name
@@ -694,14 +694,24 @@ int main(void)
         if (wheel == 1) {sp.prev();}
         if (wheel == -1) {sp.next();}
         
-        // left click
-        // bool selected = false;
-        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            // if (!IsKeyDown(KEY_LEFT_CONTROL) && !multiSelectTransient) {
-            //     selectTransients.clear();
-            // } else {
-            //     selected = !selectTransients.empty();
-            // }
+        // shift multi-select
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ) {
+            if (IsKeyDown(KEY_LEFT_SHIFT)) {
+                for(int i = 0; i < SN; ++i) if(objs[i] && CheckCollisionPointRec(mousePoint, objs[i]->bounds)) {
+                    if (selectTransients.count(i)) {
+                        selectTransients.erase(i);
+                    } else {
+                        selectTransients.insert(i);
+                    }
+                    
+                    selected = true;
+                    break;
+                }
+            } else {
+                selected = false;
+            }
+        }
+        else if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !selected) {
             // disable context menu
             if (!CheckCollisionPointRec(mousePoint, 
                 {contextMenuPosition.x, contextMenuPosition.y, 180, 150})) {
