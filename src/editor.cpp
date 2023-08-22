@@ -22,7 +22,7 @@
 * hot reloading (separate logic vs UI)
 * undo move/resize etc.
 * UUID for objects instead of index in objs
-* grid 
+
 */
 
 //helpers
@@ -508,6 +508,7 @@ int main(void)
     bool mapeditcontrol = false;
     bool contextMenu = false;
     bool debug = false;
+    bool selectall = false;
 
     Rectangle2 hover;
     bool showhover = false;
@@ -544,6 +545,15 @@ int main(void)
         // grid
         if (IsKeyPressed(KEY_G)) {
             drawGrid = !drawGrid;
+        }
+
+        // select all
+        if (IsKeyUp(KEY_A) || IsKeyUp(KEY_LEFT_CONTROL)) selectall = false;
+        if (IsKeyPressed(KEY_A) && IsKeyDown(KEY_LEFT_CONTROL)) {
+            selectall = true;
+            for(int i = 0; i < SN; ++i) {
+                if (objs[i]) selectTransients.insert(i);
+            }
         }
 
         // delete
@@ -685,8 +695,13 @@ int main(void)
         if (wheel == -1) {sp.next();}
         
         // left click
+        // bool selected = false;
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-
+            // if (!IsKeyDown(KEY_LEFT_CONTROL) && !multiSelectTransient) {
+            //     selectTransients.clear();
+            // } else {
+            //     selected = !selectTransients.empty();
+            // }
             // disable context menu
             if (!CheckCollisionPointRec(mousePoint, 
                 {contextMenuPosition.x, contextMenuPosition.y, 180, 150})) {
@@ -918,14 +933,22 @@ int main(void)
             }
             if (transient)   transient->draw();
             
-            for (auto&si :selectTransients) if (si) DrawRectangleLinesEx(objs[si]->bounds, 3.f, GOLD);
+            for (auto&si :selectTransients) if (objs[si]) DrawRectangleLinesEx(objs[si]->bounds, 3.f, GOLD);
             if (resizeTransient) DrawRectangleLinesEx(resizeTransient->bounds, 3.f, GOLD);
             else if (multiSelectTransient) DrawRectangleLinesEx(multiSelectTransient->bounds, 3.f, GOLD);
             else if (hoverTransient)  DrawRectangleLinesEx(hoverTransient->bounds, 2.f, WHITE);
             p.draw();
             if (contextMenu) {
                 if (contextTransient) {
-                    GuiColorPicker({contextMenuPosition.x, contextMenuPosition.y, 150, 150}, "ll", &contextTransient->color);
+                    auto x = contextMenuPosition.x+10;
+                    auto y = contextMenuPosition.y+20;
+                    auto width = 150;
+                    auto height = 150;
+                    if (x + width + 30 > screenWidth) x-=width-30; //30 is padding for color selector
+                    GuiColorPicker({x, y, 150, 150}, "ll", &contextTransient->color);
+                    for (auto& si : selectTransients) {
+                        objs[si]->color = contextTransient->color;
+                    }
                 }
             }
         EndDrawing();
