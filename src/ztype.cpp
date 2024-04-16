@@ -7,27 +7,36 @@
 #include <deque>
 #include <queue>
 #include <set>
+#include <string>
 #include <iterator>
 const int W = 600;
 const int H = 750;
 
 /*TODOs
 1. levels
-2. Blast effect for word
-3. 
+2. 
 */
 
 std::vector<std::string> loadFile(std::string fileName) {
     std::ifstream file(fileName);
-    // std::assert(file);
-
-    std::vector<std::string> fileContents;
-    std::copy(std::istream_iterator<std::string>(file), 
-              std::istream_iterator<std::string>(), 
-              std::back_inserter(fileContents));
-
+    std::vector<std::string> fileContents{std::istream_iterator<std::string>{file}, std::istream_iterator<std::string>{}};
     return fileContents;
 }
+
+struct ExplosionParticle
+{
+    Vector2 position;
+    Vector2 velocity;
+    float size;
+};
+struct Explosion {
+    std::vector<ExplosionParticle> particles;
+    bool valid = false;
+    const int numParticles = 60;
+    const float explosionSpeed = .3f; // Adjust this value for slower/faster explosion
+};
+Explosion explosion;
+bool showExplosion = true;
 
 struct Game {
     struct Bullet {
@@ -45,7 +54,7 @@ struct Game {
 
     
     struct Target {
-        std::string spaces="                                    ";
+        std::string spaces{"                                    "};
         Vector2 pos;
         bool done;
         std::string word;
@@ -86,7 +95,6 @@ struct Game {
         
         float posx = rand()%(W-120);
         targets.emplace_back(words[sample], posx);
-        // firstwords.emplace_back(words[sample][0]);
     }
     void reset() {
         addTarget();
@@ -116,8 +124,21 @@ struct Game {
                 
                 if (w.size() == targets[xi].y) {
                     score += w.size();
+                    
+
+                    // set up explosion
+                    explosion.particles.clear();
+                    explosion.valid = true;
+                    for (int i = 0; i < explosion.numParticles; ++i) {
+                        ExplosionParticle particle;
+                        particle.position = {targets[xi].pos.x, targets[xi].pos.y}; //{GetMouseX(), GetMouseY()};
+                        particle.velocity = {(float)GetRandomValue(-10, 10), (float)GetRandomValue(-10, 10)};
+                        particle.size = 9.f;
+                        explosion.particles.push_back(particle);
+                    }
+
+                    //clear target
                     targets.erase(begin(targets) + xi);
-                    // firstwords.erase(begin(firstwords) + xi);
                     xi = -1;
                 } 
             } else {
@@ -130,26 +151,44 @@ struct Game {
     }
     void update () {
         for (auto& t : targets) t.update();
-        std::set<std::pair<float,float>> targetcircs;
+        // std::set<std::pair<float,float>> targetcircs;
         for (int i = 0; i < BULLETS_SIZE; ++i) {
             auto& b = bullets[i];
             if (b.valid) {
                 b.pos = Vector2MoveTowards(b.pos, b.target, 19.f);
                 DrawCircle(b.pos.x, b.pos.y, 6.f, RED);
-                targetcircs.insert({b.target.x, b.target.y});
+                // targetcircs.insert({b.target.x, b.target.y});
                 if (CheckCollisionPointCircle(b.pos, b.target, 4.0f)) {
                     b.valid = false;
                 }
             }
         }
-        for(auto& t : targetcircs) DrawCircle(t.first, t.second, 4.0f, WHITE);
+        if (showExplosion && explosion.valid) {
+            for (auto &particle : explosion.particles)
+            {
+                particle.position.x += particle.velocity.x * explosion.explosionSpeed;
+                particle.position.y += particle.velocity.y * explosion.explosionSpeed;
+                particle.size -= (float)GetRandomValue(30, 70)/100;
+            }
+        }
+        // for(auto& t : targetcircs) DrawCircle(t.first, t.second, 4.0f, WHITE);
         
     }
     void draw() {
         // DrawText(targets.front().word.c_str(), 10, 10, 20, RED); // debug
         for (auto& t : targets) t.draw();
+        if (showExplosion && explosion.valid) {
+            int cnt = 0;
+            for (auto &particle : explosion.particles)
+            {
+                if (particle.size < 0.01f) {
+                    ++cnt;
+                }
+                DrawCircle(particle.position.x, particle.position.y, particle.size, GOLD);
+            }
+            if (cnt == explosion.particles.size()) {explosion.valid = false; explosion.particles.clear();}
+        }
     }
-
     
     std::vector<std::string> words;
     std::vector<Target> targets;
@@ -163,16 +202,19 @@ struct Game {
     static bool gameOver;
     int score;
 };
+
 bool Game::gameOver = false;
+bool paused = false;
+
+
 int main(){
   srand(time(0));
   InitWindow(W, H, "!! Ztype");
   SetTargetFPS(60);
   Game g;
   
-  long long int C = 0;
   float lastT = 0;
-  bool paused = false;
+  
   SetExitKey(0);
   while (!WindowShouldClose()){
     BeginDrawing();
@@ -194,7 +236,7 @@ int main(){
             g.gameOver = false;
             g.targets.clear();
             g.reset();
-            C = 0;
+            // C = 0;
         } else if (IsKeyDown(KEY_ESCAPE)) {
             break;
         }
