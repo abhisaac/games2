@@ -5,18 +5,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(Windows) Launch",
-            "type": "cppvsdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}\\build\\out.exe",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            // "console": "externalTerminal"
-            "preLaunchTask": "${defaultBuildTask}"
-        },
-        {
             "name": "(gdb) Attach",
             "type": "cppdbg",
             "request": "attach",
@@ -35,7 +23,6 @@
                 }
             ]
         },
-        
         {
             "name": "(gdb) Launch",
             "type": "cppdbg",
@@ -43,7 +30,7 @@
             "program": "${workspaceFolder}/a.out",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${fileDirname}",
+            "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
@@ -59,6 +46,18 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+        {
+            "name": "(Windows) Launch",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}\\build\\out.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            // "console": "externalTerminal"
+            "preLaunchTask": "${defaultBuildTask}"
         }
     ]
 }
