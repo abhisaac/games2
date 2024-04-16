@@ -13,7 +13,9 @@ const int H = 750;
 
 /*TODOs
 1. levels
-2. */
+2. Blast effect for word
+3. 
+*/
 
 std::vector<std::string> loadFile(std::string fileName) {
     std::ifstream file(fileName);
@@ -48,10 +50,14 @@ struct Game {
         bool done;
         std::string word;
         int y;
-        Target(std::string w) : word(w), y(0) {
-            pos.x = (rand()%(W-120)); 
+        Target(std::string w, float posx) : word(w), y(0) {
+            pos.x = posx; 
             pos.y = 0.f;
             done = false;
+        }
+        bool isClose(float x) {
+            
+            return false;
         }
         void update() {
             pos.y +=.7f;
@@ -60,7 +66,7 @@ struct Game {
         void draw() {
             DrawCircle(pos.x, pos.y - 10.f, 4.0f, WHITE);
             DrawText((spaces.substr(0, y) + word.substr(y)).c_str(), 
-                        pos.x, pos.y, 20, GOLD);
+                        pos.x, pos.y, 20, y>0 ? RED : GOLD);
         }
     };
     Game() {
@@ -72,12 +78,15 @@ struct Game {
         words = loadFile("assets/dict.txt");
     }
     void addTarget() {
-       std::random_device rd; // source of randomness
-       std::mt19937 rng(rd()); // seed random number engine
-       std::uniform_int_distribution<std::size_t> uid(0, words.size()-1);
-        std::size_t sample = uid(rng);
+       static std::random_device rd; // source of randomness
+       static std::mt19937 rng(rd()); // seed random number engine
+       static std::uniform_int_distribution<std::size_t> uid(0, words.size()-1);
+
+       std::size_t sample = uid(rng);
         
-        targets.emplace_back(words[sample]);
+        float posx = rand()%(W-120);
+        targets.emplace_back(words[sample], posx);
+        // firstwords.emplace_back(words[sample][0]);
     }
     void reset() {
         addTarget();
@@ -88,20 +97,36 @@ struct Game {
     void processInput() {
         auto key = GetKeyPressed();
         if (key==0) return;
-        auto w = targets.front().word;
-        if ((key-65) == w[targets.front().y]-'a') {
-            targets.front().y++; // = y;
-            bullets[b_pos++].reset();
-            bullets[b_pos].valid = true;
-            bullets[b_pos].target = {targets.front().pos.x, targets.front().pos.y - 10.f};
-            if (b_pos > BULLETS_SIZE-1) b_pos = 0;
-            
-            if (w.size() == targets.front().y) {
-                score += targets.front().word.size();
-                targets.pop_front();
+        keycount++;
+        if (xi == -1) {
+            for (int i = 0; auto &t : targets) {
+                if (t.word[0]-'a' == (key-65)) {xi = i; break;}
+                i++;
+            }
+        } 
+        if (xi != -1) {
+            auto w = targets[xi].word;
+        
+            if ((key-65) == w[targets[xi].y]-'a') {
+                targets[xi].y++;
+                bullets[b_pos++].reset();
+                bullets[b_pos].valid = true;
+                bullets[b_pos].target = {targets[xi].pos.x, targets[xi].pos.y - 10.f};
+                if (b_pos > BULLETS_SIZE-1) b_pos = 0;
                 
-            } 
+                if (w.size() == targets[xi].y) {
+                    score += w.size();
+                    targets.erase(begin(targets) + xi);
+                    // firstwords.erase(begin(firstwords) + xi);
+                    xi = -1;
+                } 
+            } else {
+                ++keymisses;
+            }
+        } else {
+            keymisses++;
         }
+        
     }
     void update () {
         for (auto& t : targets) t.update();
@@ -127,8 +152,11 @@ struct Game {
 
     
     std::vector<std::string> words;
-    std::deque<Target> targets;
-    
+    std::vector<Target> targets;
+    // std::vector<char> firstwords;
+    int xi = -1;
+    unsigned long long keycount = 1;
+    unsigned long long keymisses = 1;
     int b_pos;
     static const int BULLETS_SIZE = 100;
     Bullet bullets[BULLETS_SIZE];
@@ -143,23 +171,43 @@ int main(){
   Game g;
   
   long long int C = 0;
+  float lastT = 0;
+  bool paused = false;
+  SetExitKey(0);
   while (!WindowShouldClose()){
     BeginDrawing();
-    if (g.gameOver) {
+
+    if (!g.gameOver && IsKeyPressed(KEY_ESCAPE)) {
+        paused = !paused;
+    }
+
+    if (paused) {
+        DrawText("PAUSED", W/3 - 20, W/2, 40, WHITE);
+        char sc[40];
+        sprintf(sc, "Accuracy: %.02f%", 100*(g.keycount-g.keymisses)/(float)g.keycount);
+        DrawText(sc, W/3 - 20, H/2 + 50, 20, WHITE);
+    }
+    else if (g.gameOver) {
         DrawText("GAME OVER", W/3 - 20, W/2, 40, WHITE);
         DrawText("Press S to start", W/3 - 20, H/2 + 50, 20, WHITE);
         if (IsKeyDown(KEY_S)) {
             g.gameOver = false;
-           
             g.targets.clear();
-             g.reset();
+            g.reset();
             C = 0;
+        } else if (IsKeyDown(KEY_ESCAPE)) {
+            break;
         }
     } else {
         char sc[20];
         sprintf(sc, "SCORE %d", g.score);
         DrawText(sc, 10, 10, 20, WHITE);
-        if (++C % (69 + g.targets.front().word.size()*17) == 0) g.addTarget();
+
+        if (GetTime()-lastT > (1.7 + rand()%3) ) {
+            g.addTarget();
+            lastT = GetTime();
+        }
+            
         g.processInput();
         ClearBackground(BLACK);
         g.update();

@@ -63,7 +63,7 @@ enum DIRECTION {
 bool isApproxEqual(Vector2 a, Vector2 b, float threshold) {
     return (abs(a.x-b.x) < threshold) && (abs(a.y-b.y) < threshold);
 }
-bool isResizeDrag(Vector2 mouse, Rectangle2 r, float threshold = 4.f) {
+bool isResizeDrag(Vector2 mouse, Rectangle2 r, float threshold = 5.f) {
     bool res = false;
     if      (isApproxEqual(mouse, r.bottomLeft(), threshold))    { direction = SW; SetMouseCursor(MOUSE_CURSOR_RESIZE_NESW); res=true;}
     else if (isApproxEqual(mouse, r.bottomRight(), threshold))   { direction = SE; SetMouseCursor(MOUSE_CURSOR_RESIZE_NWSE); res=true;}
@@ -99,7 +99,9 @@ struct Shape {
             break;
         }
     }
-    virtual void resize(Vector2 mousePoint) {}
+    virtual void resize(Vector2 mousePoint) {
+
+    }
     bool isHovering(Vector2 mousePoint) {
         return CheckCollisionPointRec(mousePoint, bounds);
     }
@@ -659,7 +661,7 @@ int main(void)
                 for(int i = 0; i < SN; ++i) {
                     if (!objs[i]) continue;
 
-                    if (isResizeDrag(mousePoint, objs[i]->bounds) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+                    if (hoverTransient == objs[i] && isResizeDrag(mousePoint, objs[i]->bounds) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
                         resizeTransient = objs[i];
                         resizeTransient->resizeInit();
                         break;
@@ -950,11 +952,11 @@ int main(void)
             p.draw();
             if (contextMenu) {
                 if (contextTransient) {
-                    auto x = contextMenuPosition.x+10;
-                    auto y = contextMenuPosition.y+20;
-                    auto width = 150;
-                    auto height = 150;
-                    if (x + width + 30 > screenWidth) x-=width-30; //30 is padding for color selector
+                    auto x = contextMenuPosition.x; //+10;
+                    auto y = contextMenuPosition.y; //+20;
+                    // auto width = 150;
+                    // auto height = 150;
+                    // if (x + width + 30 > screenWidth) x-=width-30; //30 is padding for color selector
                     GuiColorPicker({x, y, 150, 150}, "ll", &contextTransient->color);
                     for (auto& si : selectTransients) {
                         objs[si]->color = contextTransient->color;
