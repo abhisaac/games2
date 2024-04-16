@@ -12,10 +12,6 @@
 const int W = 600;
 const int H = 750;
 
-/*TODOs
-1. levels
-2. 
-*/
 
 std::vector<std::string> loadFile(std::string fileName) {
     std::ifstream file(fileName);
@@ -29,14 +25,52 @@ struct ExplosionParticle
     Vector2 velocity;
     float size;
 };
+bool showExplosion = true;
 struct Explosion {
     std::vector<ExplosionParticle> particles;
     bool valid = false;
     const int numParticles = 60;
     const float explosionSpeed = .3f; // Adjust this value for slower/faster explosion
+    
+    void setup(float x, float y) {
+        particles.clear();
+        valid = true;
+        for (int i = 0; i < numParticles; ++i) {
+            ExplosionParticle particle;
+            particle.position = {x, y}; //{GetMouseX(), GetMouseY()};
+            particle.velocity = {(float)GetRandomValue(-10, 10), (float)GetRandomValue(-10, 10)};
+            particle.size = 9.f;
+            particles.push_back(particle);
+        }
+    }
+
+    void update() {
+        if (showExplosion && valid) {
+            for (auto &particle : particles)
+            {
+                particle.position.x += particle.velocity.x * explosionSpeed;
+                particle.position.y += particle.velocity.y * explosionSpeed;
+                particle.size -= (float)GetRandomValue(30, 70)/100;
+            }
+        }
+    }
+
+    void draw() {
+        if (showExplosion && valid) {
+            int cnt = 0;
+            for (auto &particle : particles)
+            {
+                if (particle.size < 0.01f) {
+                    ++cnt;
+                }
+                DrawCircle(particle.position.x, particle.position.y, particle.size, GOLD);
+            }
+            if (cnt == particles.size()) {valid = false; particles.clear();}
+        }
+    }
 };
 Explosion explosion;
-bool showExplosion = true;
+
 
 struct Game {
     struct Bullet {
@@ -100,6 +134,7 @@ struct Game {
         addTarget();
         b_pos = 0;
         score = 0;
+        level =1;
     }
     
     void processInput() {
@@ -117,26 +152,24 @@ struct Game {
         
             if ((key-65) == w[targets[xi].y]-'a') {
                 targets[xi].y++;
-                bullets[b_pos++].reset();
+                b_pos++;
+                if (b_pos > BULLETS_SIZE-1) b_pos = 0;
+                bullets[b_pos].reset();
                 bullets[b_pos].valid = true;
                 bullets[b_pos].target = {targets[xi].pos.x, targets[xi].pos.y - 10.f};
-                if (b_pos > BULLETS_SIZE-1) b_pos = 0;
                 
                 if (w.size() == targets[xi].y) {
                     score += w.size();
-                    
-
-                    // set up explosion
-                    explosion.particles.clear();
-                    explosion.valid = true;
-                    for (int i = 0; i < explosion.numParticles; ++i) {
-                        ExplosionParticle particle;
-                        particle.position = {targets[xi].pos.x, targets[xi].pos.y}; //{GetMouseX(), GetMouseY()};
-                        particle.velocity = {(float)GetRandomValue(-10, 10), (float)GetRandomValue(-10, 10)};
-                        particle.size = 9.f;
-                        explosion.particles.push_back(particle);
+                    ++numWordsDone;
+                    // std::cout << numWordsDone << std::endl;
+                    if (numWordsDone%levelUpFreq == 0) {
+                        // std::cout << " ......... Level up >>>>>>>>> " << std::endl;
+                        level += 1;
+                        showLevel = true;
                     }
 
+                    explosion.setup(targets[xi].pos.x, targets[xi].pos.y);
+                
                     //clear target
                     targets.erase(begin(targets) + xi);
                     xi = -1;
@@ -163,31 +196,15 @@ struct Game {
                 }
             }
         }
-        if (showExplosion && explosion.valid) {
-            for (auto &particle : explosion.particles)
-            {
-                particle.position.x += particle.velocity.x * explosion.explosionSpeed;
-                particle.position.y += particle.velocity.y * explosion.explosionSpeed;
-                particle.size -= (float)GetRandomValue(30, 70)/100;
-            }
-        }
+        explosion.update();
         // for(auto& t : targetcircs) DrawCircle(t.first, t.second, 4.0f, WHITE);
         
     }
     void draw() {
         // DrawText(targets.front().word.c_str(), 10, 10, 20, RED); // debug
         for (auto& t : targets) t.draw();
-        if (showExplosion && explosion.valid) {
-            int cnt = 0;
-            for (auto &particle : explosion.particles)
-            {
-                if (particle.size < 0.01f) {
-                    ++cnt;
-                }
-                DrawCircle(particle.position.x, particle.position.y, particle.size, GOLD);
-            }
-            if (cnt == explosion.particles.size()) {explosion.valid = false; explosion.particles.clear();}
-        }
+        explosion.draw();
+        
     }
     
     std::vector<std::string> words;
@@ -201,6 +218,10 @@ struct Game {
     Bullet bullets[BULLETS_SIZE];
     static bool gameOver;
     int score;
+    int numWordsDone = 0;
+    int level = 1;
+    bool showLevel = false;
+    int levelUpFreq = 5;
 };
 
 bool Game::gameOver = false;
@@ -214,7 +235,8 @@ int main(){
   Game g;
   
   float lastT = 0;
-  
+  float lastShowLevelT = 0;
+  bool showLevelNotRun = true;
   SetExitKey(0);
   while (!WindowShouldClose()){
     BeginDrawing();
@@ -242,10 +264,25 @@ int main(){
         }
     } else {
         char sc[20];
-        sprintf(sc, "SCORE %d", g.score);
+        sprintf(sc, "SCORE %d --- LEVEL %d", g.score, g.level);
         DrawText(sc, 10, 10, 20, WHITE);
 
-        if (GetTime()-lastT > (1.7 + rand()%3) ) {
+        if (g.showLevel) {
+            if (showLevelNotRun) {
+                lastShowLevelT = GetTime();
+                showLevelNotRun = false;
+            }
+            if (GetTime()-lastShowLevelT < 1.3f) {
+                char sc2[20];
+                sprintf(sc, "LEVEL %d", g.level);
+                DrawText(sc, W/3 - 20, W/2, 40, WHITE);
+            } else {
+                g.showLevel = false;
+                showLevelNotRun = true;
+            }
+        }
+
+        if (GetTime()-lastT > (2.7f/g.level + rand()%3) ) {
             g.addTarget();
             lastT = GetTime();
         }

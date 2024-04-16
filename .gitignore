@@ -3,3 +3,4 @@ obj/
 a.out
 .vscode/settings.json
 tmp.png
+.gdb_history
