@@ -3,9 +3,8 @@
 */
 /*
 TODOs
-1. 
-2. sp tinting instead of loading multiple enemies
-3. 
+1. game mechanics
+2. explosion animation can be better
 */
 
 #include "raylib.h"
@@ -21,19 +20,16 @@ struct GameConstants {
 Vector2 randDelta() {
   return { rand()%2 ? -GameConstants::DELTAX : GameConstants::DELTAX,
            GameConstants::DELTAY};
-  // return {(float)rand()*GameConstants::DELTA/ (float)(RAND_MAX) - GameConstants::DELTA, 
-  //         (float)rand()*GameConstants::DELTA/ (float)(RAND_MAX) - GameConstants::DELTA};
 }
 Vector2 randPosition() {
   // respawn at the top 1/8th of the window
   return {(float)rand()*GameConstants::SIZEX/ (float)(RAND_MAX),  0};
-          // (float)rand()*GameConstants::SIZEY/ (float)(16.0f * RAND_MAX)};
 }
 
 // SHIP
 struct Sprite
 {
-  Sprite(char *name)
+  Sprite(const char *name)
   {
     sp = LoadTexture(name);
     pos = {(GameConstants::SIZEX/2.f), (GameConstants::SIZEY/2.f)};
@@ -64,62 +60,60 @@ struct Sprite
 
 
 long long cnt = 0L;
-Texture2D enemyTex[5];
+Texture2D enemyTex;
 
 // ENEMY
 struct Enemy {
-  Enemy(Texture2D& sp, Vector2 pos) : 
-        sp(sp)
+  Enemy(Texture2D& sp, Vector2 pos, Color tint) : 
+        sp(sp), tint(tint)
   {
-    // puts("EE");
     reset();
   }
+
   void draw()
   {
     rot += 0.5f;
     if (destroyed) {
-      offset += 1.4f;  
+      offset += 0.4f;  
       size -= 0.02f;
-      // DrawCircle(pos.x - offset*2.f, pos.y - offset, size, GREEN);
-      // DrawCircl e(pos.x - offset, pos.y + offset, size, GREEN);
-      // DrawCircle(pos.x + offset, pos.y, size, GREEN);
       if (size > 0.f) {
-        DrawTextureEx(sp, {pos.x - offset*2.f, pos.y- offset}, -offset, size, WHITE);
-        DrawTextureEx(sp, {pos.x - offset, pos.y}, offset, size, WHITE);
-        DrawTextureEx(sp, {pos.x + offset, pos.y}, -offset, size, WHITE);  
+        DrawTextureEx(sp, {pos.x - offset*2.f, pos.y- offset}, -offset, size, tint);
+        DrawTextureEx(sp, {pos.x - offset, pos.y}, offset, size, tint);
+        DrawTextureEx(sp, {pos.x + offset, pos.y}, -offset, size, tint);  
       } else {
         reset();
       }
       
     } else {
-      // DrawTextureEx(sp, {pos.x, pos.y}, rot, 1.0f, WHITE);
       DrawTexturePro(sp, { 0.0f, 0.0f, (float)sp.width, (float)sp.height }, 
         { pos.x, pos.y, (float)sp.width, (float)sp.height }, 
-        {sp.width / 2.f, sp.height / 2.f}, dir ? -rot : rot, WHITE);
-//      
-      // DrawRectangle(pos.x, pos.y, 64, 64, ORANGE); // Test Bounding box of Texture.
+        {sp.width / 2.f, sp.height / 2.f}, dir ? -rot : rot, tint);
     }
   }
+
   void reset() {
-    sp = enemyTex[rand()%5];  
+    // sp = enemyTex[rand()%5];  
+    tint = {(unsigned char) (rand() % 255), (unsigned char) (rand() % 255), (unsigned char) (rand() % 255), 255};
     pos = randPosition();
-          delta = randDelta(); 
+    delta = randDelta(); 
     offset = 0.f;
     destroyed = false;
     size = 1.f;
     rot = 0.0f;
     dir = rand()  %2 ;
   }
+  
   void update() {
     pos.x += delta.x;
     pos.y += delta.y;
 
     if (pos.x > GameConstants::SIZEX || pos.x < 0.f 
-        || pos.y > GameConstants::SIZEY || pos.y < 0.f) {
-          reset();
-          // ++cnt;
-        } 
+        || pos.y > GameConstants::SIZEY || pos.y < 0.f) 
+    {
+      reset();
+    } 
   }
+
   bool dir;
   Texture2D sp;
   Vector2 pos;
@@ -128,18 +122,20 @@ struct Enemy {
   float offset;
   float size;
   float rot;
+  Color tint;
 };
 
- int b_idx = 0;
+
 struct Bullet {
   Vector2 pos;
   bool valid;
+  float size = 5.f; 
   Bullet() {
     valid = false;
   }
   void draw() {
     if (valid)
-      DrawCircle(pos.x, pos.y, 3.1f, ORANGE);
+      DrawCircle(pos.x, pos.y, size, ORANGE);
   }
   void update() {
     if (!valid) return;
@@ -155,18 +151,21 @@ int main()
   
   InitWindow(GameConstants::SIZEX, GameConstants::SIZEY, "!! Asteroids");
   
-  enemyTex[0] = LoadTexture("assets/e1.png");
-  enemyTex[1] = LoadTexture("assets/e2.png");
-  enemyTex[2] = LoadTexture("assets/e3.png");
-  enemyTex[3] = LoadTexture("assets/e4.png");
-  enemyTex[4] = LoadTexture("assets/e5.png");
+  enemyTex = LoadTexture("assets/e1.png");
+  // enemyTex[1] = LoadTexture("assets/e2.png");
+  // enemyTex[2] = LoadTexture("assets/e3.png");
+  // enemyTex[3] = LoadTexture("assets/e4.png");
+  // enemyTex[4] = LoadTexture("assets/e5.png");
   SetTargetFPS(60);
   
   // Enemies
   int N = 4;
   std::vector<Enemy> badguys;
-  for (int i = 0; i< N; ++i) 
-    badguys.emplace_back(enemyTex[rand()%5], randPosition());
+  for (int i = 0; i< N; ++i) {
+    Color color {(unsigned char) (rand() % 255), (unsigned char) (rand() % 255), (unsigned char) (rand() % 255), 255};
+    badguys.emplace_back(enemyTex, randPosition(), color);
+  }
+    
     
 
   // Bullets
@@ -181,7 +180,7 @@ int main()
     {
       
       BeginDrawing();
-        ClearBackground(BLACK);
+        ClearBackground(GRAY);
         if (gameover) {
           DrawText("GAME OVER", GameConstants::SIZEX/3 - 20, GameConstants::SIZEY/2, 40, WHITE);
           DrawText("Press S to start", GameConstants::SIZEX/3 - 20, GameConstants::SIZEY/2 + 50, 20, WHITE);
@@ -204,14 +203,10 @@ int main()
         for (auto& e : badguys) {
           e.draw();
           e.update();
-          
-
 
           if (!e.destroyed && 
           CheckCollisionCircleRec({e.pos.x, e.pos.y}, e.sp.width/2, 
                 {ship.pos.x, ship.pos.y, (float)ship.sp.width, (float)ship.sp.height}))
-          // CheckCollisionRecs({e.pos.x, e.pos.y, 50.f, 50.f},
-          //                        {ship.pos.x, ship.pos.y, 70.f, 70.f})) 
           {
             gameover = true;
           }
@@ -227,7 +222,7 @@ int main()
               if (!bullets[i].valid) break;
               ++i;
             } 
-            bullets[i].pos = {ship.pos.x + 40.f, ship.pos.y};
+            bullets[i].pos = {ship.pos.x + ship.sp.width/2.f, ship.pos.y};
             bullets[i].valid = true;
           }
         }
@@ -238,10 +233,7 @@ int main()
             if (!bullets[i].valid) continue;
             for (auto& e : badguys) {
               if (CheckCollisionPointCircle(bullets[i].pos, {e.pos.x, e.pos.y}, e.sp.width/2))
-              // if (CheckCollisionPointRec(bullets[i].pos, 
-              //   {e.pos.x, e.pos.y, 80.f, 80.f})) {
               {    ++cnt;
-                  // e.reset();
                   e.destroyed = true;
                   bullets[i].valid = false;
               }
@@ -255,11 +247,11 @@ int main()
       EndDrawing();
     }
   }
-  UnloadTexture(enemyTex[0]);
-  UnloadTexture(enemyTex[1]);
-  UnloadTexture(enemyTex[2]);
-  UnloadTexture(enemyTex[3]);
-  UnloadTexture(enemyTex[4]);
+  UnloadTexture(enemyTex);
+  // UnloadTexture(enemyTex[1]);
+  // UnloadTexture(enemyTex[2]);
+  // UnloadTexture(enemyTex[3]);
+  // UnloadTexture(enemyTex[4]);
   CloseWindow();
   return 0;
 }
