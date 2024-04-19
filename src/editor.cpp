@@ -12,6 +12,7 @@
 
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
+#include "player.h"
 // #include <string>
 /*TODO
 * Enemies
@@ -25,40 +26,6 @@
 
 */
 
-//helpers
-float min(float x, float y) { return x < y ? x : y;}
-float max(float x, float y) { return x > y ? x : y;}
-
-
-enum SHAPE {
-    SELECT,
-    RECTANGLE,
-    CIRCLE,
-    _SHAPE_SIZE
-} ;
-
-struct Rectangle2 : Rectangle {
-    Vector2 bottomRight() {
-        return {x + width, y + height};
-    }
-    Vector2 bottomLeft() {
-        return {x, y + height};
-    }
-    Vector2 topRight() {
-        return {x + width, y};
-    }
-    Vector2 topLeft() {
-        return {x, y};
-    }
-};
-
-
-
-// NE, NW, SE, SW handles
-enum DIRECTION {
-    NW, NE, SE, SW
-} direction;
-
 // const float threshold = 4.f;
 bool isApproxEqual(Vector2 a, Vector2 b, float threshold) {
     return (abs(a.x-b.x) < threshold) && (abs(a.y-b.y) < threshold);
@@ -71,42 +38,6 @@ bool isResizeDrag(Vector2 mouse, Rectangle2 r, float threshold = 5.f) {
     else if (isApproxEqual(mouse, r.topRight(), threshold))      { direction = NE; SetMouseCursor(MOUSE_CURSOR_RESIZE_NESW); res=true;}
     return res;
 }
-
-struct Shape {
-    Vector2 start, end;
-    SHAPE shape;
-    Color color;
-    Rectangle2 bounds;
-    virtual void push(Vector2 pos) {}
-    virtual void draw() {}
-    virtual void clear() {}
-    virtual bool intersects(Vector2 pos) {return false;}
-    virtual void move(Vector2 dt) {} 
-    virtual char* serialize() { return nullptr;}
-    virtual Shape* clone() {return nullptr;}
-    void resizeInit() {
-        switch (direction)
-        {
-        case NW: start = bounds.bottomRight();
-            break;
-        case NE: start = bounds.bottomLeft();
-            break;
-        case SW: start = bounds.topRight();
-            break;
-        case SE: start = bounds.topLeft();
-            break;
-        default:
-            break;
-        }
-    }
-    virtual void resize(Vector2 mousePoint) {
-
-    }
-    bool isHovering(Vector2 mousePoint) {
-        return CheckCollisionPointRec(mousePoint, bounds);
-    }
-};
-
 
 struct ShapePicker {
     static const int N = _SHAPE_SIZE;
@@ -197,99 +128,6 @@ struct ColorPicker {
 };
 
 
-
-Shape* resizeTransient = nullptr;
-struct RectShape : public Shape {
-    RectShape() {shape = RECTANGLE;}
-    RectShape(Vector2 pos) { start = pos; end = pos; shape=RECTANGLE;}
-    Shape* clone() {
-        auto* tmp = new RectShape;
-        tmp->bounds = bounds;
-        tmp->color = color;
-        return tmp;
-    }
-    void draw() {
-        DrawRectangle(bounds.x, bounds.y, bounds.width, bounds.height, color);
-    }
-    void clear() {
-        
-    }
-    char* serialize() {
-        char* out = (char*) malloc(100*sizeof(char));
-        sprintf(out, "RECTANGLE %f %f %f %f COLOR %u %u %u %u", 
-                    bounds.x, bounds.y, bounds.width, bounds.height,
-                    color.r, color.g, color.b, color.a);
-        return out;
-    }
-    void move (Vector2 dt){
-        bounds.x += dt.x;
-        bounds.y += dt.y;
-    }
-    void push(Vector2 newpos) {
-        end = newpos;
-        bounds = {min(start.x,end.x), min(start.y, end.y), abs(end.x-start.x), abs(end.y-start.y)};
-    }
-    bool intersects(Vector2 pos) {
-        return CheckCollisionPointRec(pos, bounds);
-    }
-    
-    void resize(Vector2 mousePoint) {
-        end = mousePoint;
-        bounds = {min(start.x,end.x), min(start.y, end.y), abs(end.x-start.x), abs(end.y-start.y)};
-    }
-};
-
-
-struct CircleShape : public Shape {
-    Vector2 center;
-    float radius;
-    CircleShape() {shape = CIRCLE;}
-    CircleShape(Vector2 pos) : center(pos) {shape = CIRCLE;}
-    Shape* clone() {
-        auto* tmp = new CircleShape;
-        tmp->radius = radius;
-        tmp->center = center;
-        tmp->color = color;
-        tmp->setBounds();
-        return tmp;
-    }
-    void draw() {
-        DrawCircle(center.x, center.y, radius, color);
-    }
-    void clear() {
-        
-    }
-    char* serialize() {
-        char* out = (char*) malloc(100*sizeof(char));
-        sprintf(out, "CIRCLE %f %f %f COLOR %u %u %u %u", center.x, center.y, radius,
-                        color.r, color.g, color.b, color.a);
-        return out;
-    }
-    void move (Vector2 dt){
-        center.x += dt.x;
-        center.y += dt.y;
-        setBounds();
-    }
-    void setBounds(){
-        bounds = {center.x-radius, center.y-radius, radius*2.f, radius*2.f};
-    }
-    void push(Vector2 newpos) {
-        // center = newpos;
-        radius =  max(abs(center.x-newpos.x), abs(center.y-newpos.y));
-        setBounds();
-    }
-    bool intersects(Vector2 pos) {
-        return CheckCollisionPointCircle(pos, center, radius);
-    }
-    
-    void resize(Vector2 mousePoint) {
-        end = mousePoint;
-        bounds = {min(start.x,end.x), min(start.y, end.y), abs(end.x-start.x), abs(end.y-start.y)};
-        radius = min(bounds.width, bounds.height)/2.;
-        center = {bounds.x + bounds.width/2.f, bounds.y + bounds.height/2.f};
-    }
-};
-
 const int screenWidth = 1200;
 const int screenHeight = 800;
 
@@ -303,127 +141,7 @@ int getNextIdx() {
     assert(i < SN);
     return i;
 }
-struct Player {
-    Color color;
-    Rectangle2 pos;
-    Texture2D hero;
-    Rectangle heroRec;
-    
-    float gravity = 300.f;
-    float speedy = 0.0f;
-    float speedx = 1.f;
-    bool jump;
 
-    int frame = 0;
-    const int SPRITE_FRAMES = 5;
-    
-    float updateTime = 1.0/10.0;
-    float runningTime = 0.0;
-
-    void reset () {
-         gravity = 300.f;
-         speedy = 0.0f;
-         speedx = 1.f;
-         jump = true;
-        pos.x = 130;
-        pos.y = 130;
-    }
-    Player() : color(ORANGE) {
-        hero  =  LoadTexture("assets/sprite.png");
-        heroRec.width = hero.width/SPRITE_FRAMES;
-        heroRec.height = hero.height;
-        heroRec.x = 0;
-        heroRec.y = 0;
-        pos = {130, 130, heroRec.width, heroRec.height};
-        reset();
-    };
-    ~Player() {
-        UnloadTexture(hero);
-    }
-    void update(Shape** objs) {
-        auto dT = GetFrameTime();
-        
-        if (IsKeyDown(KEY_RIGHT)) {
-            speedx = 306.f;
-            if (heroRec.width < 0) heroRec.width = -heroRec.width;
-            runningTime += dT;
-            if(runningTime >= updateTime){
-                runningTime = 0;
-                
-                heroRec.x = hero.width/SPRITE_FRAMES * frame;
-                frame++;
-                if(frame>SPRITE_FRAMES){
-                    frame = 0;
-                }
-            }
-        } 
-        if (IsKeyDown(KEY_LEFT)) {
-            speedx = -306.f;
-            if (heroRec.width > 0) heroRec.width = -heroRec.width;
-            // heroRec.width = -heroRec.width;
-            runningTime += dT;
-            if(runningTime >= updateTime){
-                runningTime = 0;
-                
-                heroRec.x = hero.width/SPRITE_FRAMES * frame;
-                frame++;
-                if(frame>SPRITE_FRAMES){
-                    frame = 0;
-                }
-            }
-        } 
-        if (!jump && speedy >= 0.f && (IsKeyPressed(KEY_UP))) {
-            pos.y -= 2.f;
-            speedy = -260.f;
-            if (speedy < -260.f)
-                speedy = -260.f;
-            jump = true;
-        }
-        
-        
-        pos.x += speedx * dT;
-        if (pos.x+heroRec.width > screenWidth) pos.x = screenWidth-heroRec.width;
-        if (pos.x < 0) pos.x = 0;
-        bool collide=  false;
-        for (int i  = 0;i < SN; ++i) {
-            if (objs[i]) {
-                if (objs[i]->shape == RECTANGLE) {
-                    RectShape* tmp = (RectShape*)objs[i];
-                    if (CheckCollisionPointRec({pos.x, pos.y + heroRec.height}, tmp->bounds)) {
-                        pos.y = tmp->bounds.y-heroRec.height;
-                        collide = true;
-                        jump = false;
-                        break;
-                    }
-                } else if (objs[i]->shape == CIRCLE) {
-                    CircleShape* tmp = (CircleShape*)objs[i];
-                    if (CheckCollisionPointCircle({pos.x, pos.y + heroRec.height}, tmp->center, tmp->radius)) {
-                        pos.y = tmp->bounds.y-heroRec.height;
-                        collide = true;
-                        jump = false;
-                        break;
-                    }
-                }
-                
-            }
-        }
-        if (!collide) {
-            pos.y += speedy * dT;
-            if (pos.y+heroRec.height> screenHeight) pos.y = screenHeight-heroRec.height;
-            if (pos.y < 0) pos.y = 0.f;
-            speedy += gravity * dT;
-        } else {
-            speedy = 0.f;
-        }
-            
-        speedx *= .8f;
-        if (speedx < 0.001f) speedx = 0;
-    }
-    void draw() {
-        // DrawRectangleRounded (pos, .2f, 2, color);
-        DrawTextureRec(hero,heroRec,{pos.x, pos.y},WHITE);
-    }
-};
 
 void clearStrokes(Shape** objs, int&s) {
     for (int i = 0; i < SN; ++i) {
@@ -436,19 +154,16 @@ void clearStrokes(Shape** objs, int&s) {
     s = 0;
 }
 
-void loadStrokes(Shape** objs, int& s) {
+void loadStrokes(Shape* objs[], int& s) {
     //load file to objs
     std::ifstream ifs("test.map"); //, "r");
-    // FILE* fid = fopen("temp.map", "r");
-    // size_t n = 100;
-    // char* line = (char*)malloc(sizeof(char) * n);
+
     std::string line;
     while(std::getline(ifs, line)) {
-        // std::string type, data;
+
         char shape[25], data[70];
         sscanf(line.c_str(), "%s %[^\n]", shape, data );
-        // std::stringstream ss(line);
-        // line >> type >> data;
+
         if (strcmp(shape, "RECTANGLE") == 0) {
             Rectangle2 r;
             Color c;
@@ -458,7 +173,7 @@ void loadStrokes(Shape** objs, int& s) {
             auto* tmp = new RectShape();
             tmp->color = c;
             tmp->bounds = r;
-            // std::cerr << tmp << std::endl;
+
             objs[getNextIdx()] = tmp;
             
         } else if (strcmp(shape,"CIRCLE")==0) {
@@ -473,7 +188,7 @@ void loadStrokes(Shape** objs, int& s) {
             tmp->radius = radius;
             tmp->center = center;
             tmp->setBounds();
-            // std::cerr << tmp << std::endl;
+
             objs[getNextIdx()] = tmp;
             
         }
@@ -491,7 +206,7 @@ void savemap(char* filename, Shape** objs, int& s) {
 }
 int main(void)
 {
-    
+    InitAudioDevice();
     ColorPicker cp;
     ShapePicker sp;
 
@@ -527,7 +242,7 @@ int main(void)
     Vector2 contextMenuPosition;
     Shape* hoverTransient = nullptr;
 
-    Player p;
+    Player p(screenWidth, screenHeight);
     
     loadStrokes(objs, s);
     char filename[20] = "test.map";
@@ -586,7 +301,7 @@ int main(void)
         //    TakeScreenshot("tmp.png"); // TODO: Fix png size; edge pixels bleeding out
             savemap(filename, objs, s);
             save = true;
-        }
+        }   
 //TODO: fix undo/redo to work with object pool/getNextIdx
         //redo
         if (IsKeyUp(KEY_Y) || IsKeyUp(KEY_LEFT_CONTROL)) isredo = false;
@@ -880,8 +595,36 @@ int main(void)
             resizeTransient = nullptr;
             multiSelectTransient = nullptr;
         }
-        if (!mapedit)
-            p.update(objs);
+        if (!mapedit) {
+            p.update();
+            bool collide = false;
+            float newy = 0.f;
+            for (int i  = 0;i < SN; ++i) {
+                if (objs[i]) {
+                    if (objs[i]->shape == RECTANGLE) {
+                        RectShape* tmp = (RectShape*)objs[i];
+                        if (CheckCollisionPointRec({p.pos.x, p.pos.y + p.heroRec.height}, tmp->bounds)) {
+                            newy = tmp->bounds.y-p.heroRec.height;
+                            collide = true;
+                            break;
+                        }
+                    } else if (objs[i]->shape == CIRCLE) {
+                        CircleShape* tmp = (CircleShape*)objs[i];
+                        if (CheckCollisionPointCircle({p.pos.x, p.pos.y + p.heroRec.height}, tmp->center, tmp->radius)) {
+                            newy = tmp->bounds.y-p.heroRec.height;
+                            collide = true;
+                            break;
+                        }
+                    }
+                    
+                }
+            }
+
+        // TODO: this API can be better
+            p.updateSpeed(collide, newy);
+        }
+            
+
         // Clear
         if (GuiButton({350, 0, 80, 40}, "#0#Clear")) { 
             //clear

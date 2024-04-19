@@ -67,6 +67,9 @@ int main()
 
     bool gameover = false;
     long long cntx = 0, cnty = 0;
+
+    Texture2D backgroundImage = LoadTexture("assets/pong_bg.png");
+    float scale = static_cast<float>(GameConstants::SIZEX) / backgroundImage.width;
     while (!WindowShouldClose())
     {
       if (!IsSoundPlaying(backgroundSound)) {
@@ -74,6 +77,12 @@ int main()
       }
       BeginDrawing();
       ClearBackground(GRAY);
+      DrawTexturePro(backgroundImage, 
+                       { 0.0f, 0.0f, static_cast<float>(backgroundImage.width), static_cast<float>(backgroundImage.height) }, 
+                       { 0.0f, 0.0f, static_cast<float>(GameConstants::SIZEX), static_cast<float>(backgroundImage.height * scale) }, 
+                       { 0, 0 }, 
+                       0.0f, 
+                       WHITE);
         if (gameover) {
           DrawText("GAME OVER", GameConstants::SIZEX/3 - 20, GameConstants::SIZEY/2, 40, WHITE);
           DrawText("Press R to Restart", GameConstants::SIZEX/3 - 20, GameConstants::SIZEY/2 + 50, 20, WHITE);
@@ -99,10 +108,10 @@ int main()
             if (IsKeyDown(KEY_UP))   updateBar(two, updateBy, Dir::up);
             if (IsKeyDown(KEY_DOWN)) updateBar(two, updateBy, Dir::down);
 
-            DrawRectangleRec(one, WHITE);
-            DrawRectangleRec(two, WHITE);
+            DrawRectangleRec(one, PURPLE);
+            DrawRectangleRec(two, PURPLE);
 
-            DrawCircle(c.x, c.y, cradius, RED);
+            DrawCircle(c.x, c.y, cradius, YELLOW);
 
             if (CheckCollisionCircleRec(c, cradius, one)) {
                 cvec.x = -cvec.x;

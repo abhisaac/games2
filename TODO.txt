@@ -1,5 +1,7 @@
 * ztype [DONE]
 * paint [DONE]
+* asteroids [DONE]
+* pong [DONE]
 * music visualizer
 * 2d pacman
 * 2d platformer

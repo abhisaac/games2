@@ -194,7 +194,7 @@ int main()
       }
       BeginDrawing();
         ClearBackground(RAYWHITE);
-        DrawTexture(backgroundImage, 0, 0, WHITE);
+        // DrawTexture(backgroundImage, 0, 0, WHITE);
         DrawTexturePro(backgroundImage, 
                        { 0.0f, 0.0f, static_cast<float>(backgroundImage.width), static_cast<float>(backgroundImage.height) }, 
                        { 0.0f, 0.0f, static_cast<float>(GameConstants::SIZEX), static_cast<float>(backgroundImage.height * scale) }, 
