@@ -4,14 +4,15 @@
 /*
 TODOs
 1. game mechanics
-2. clean up
-3. refactor explosion into a common header
-4. 
+4. bullet management improve
 */
 
 #include "raylib.h"
+
+
 #include <iostream>
 #include <vector>
+#include "explosion.h"
 struct GameConstants {
   inline static const float SIZEX = 600.f;
   inline static const float SIZEY = 750.f;
@@ -64,59 +65,6 @@ struct Sprite
 long long cnt = 0L;
 Texture2D enemyTex;
 
-struct ExplosionParticle
-{
-    Vector2 position;
-    Vector2 velocity;
-    float size;
-};
-bool showExplosion = true;
-struct Explosion {
-    std::vector<ExplosionParticle> particles;
-    bool valid = false;
-    const int numParticles = 60;
-    const float explosionSpeed = .3f; // Adjust this value for slower/faster explosion
-    Color tint;
-    
-    void setup(float x, float y, Color c) {
-        tint = c;
-        particles.clear();
-        valid = true;
-        for (int i = 0; i < numParticles; ++i) {
-            ExplosionParticle particle;
-            particle.position = {x, y}; //{GetMouseX(), GetMouseY()};
-            particle.velocity = {(float)GetRandomValue(-10, 10), (float)GetRandomValue(-10, 10)};
-            particle.size = 9.f;
-            particles.push_back(particle);
-        }
-    }
-
-    void update() {
-        if (showExplosion && valid) {
-            for (auto &particle : particles)
-            {
-                particle.position.x += particle.velocity.x * explosionSpeed;
-                particle.position.y += particle.velocity.y * explosionSpeed;
-                particle.size -= (float)GetRandomValue(30, 70)/100;
-            }
-        }
-    }
-
-    bool draw() {
-        if (showExplosion && valid) {
-            int cnt = 0;
-            for (auto &particle : particles)
-            {
-                if (particle.size < 0.01f) {
-                    ++cnt;
-                }
-                DrawCircle(particle.position.x, particle.position.y, particle.size, tint);
-            }
-            if (cnt == particles.size()) {valid = false; particles.clear(); return false;}
-        }
-        return true;
-    }
-};
 
 // ENEMY
 struct Enemy {
@@ -130,15 +78,6 @@ struct Enemy {
   {
     rot += 0.5f;
     if (destroyed) {
-      // offset += 0.4f;  
-      // size -= 0.02f;
-      // if (size > 0.f) {
-      //   DrawTextureEx(sp, {pos.x - offset*2.f, pos.y- offset}, -offset, size, tint);
-      //   DrawTextureEx(sp, {pos.x - offset, pos.y}, offset, size, tint);
-      //   DrawTextureEx(sp, {pos.x + offset, pos.y}, -offset, size, tint);  
-      // } else {
-      //   reset();
-      // }
       if (!explosion.draw()) {
         reset();
       }
@@ -149,15 +88,13 @@ struct Enemy {
     }
   }
 
-  void reset() {
-    // sp = enemyTex[rand()%5];  
+  void reset() { 
     tint = {(unsigned char) (rand() % 255), (unsigned char) (rand() % 255), (unsigned char) (rand() % 255), 255};
     pos = randPosition();
     delta = randDelta(); 
     offset = 0.f;
     destroyed = false;
     fullsize = (rand()%5)*.2f + .6f;
-    // std::cout << fullsize << std::endl;
     size = fullsize;
     
     rot = 0.0f;
@@ -219,10 +156,6 @@ int main()
   InitWindow(GameConstants::SIZEX, GameConstants::SIZEY, "!! Asteroids");
   
   enemyTex = LoadTexture("assets/e1.png");
-  // enemyTex[1] = LoadTexture("assets/e2.png");
-  // enemyTex[2] = LoadTexture("assets/e3.png");
-  // enemyTex[3] = LoadTexture("assets/e4.png");
-  // enemyTex[4] = LoadTexture("assets/e5.png");
   SetTargetFPS(60);
   
   // Enemies
@@ -232,22 +165,42 @@ int main()
     Color color {(unsigned char) (rand() % 255), (unsigned char) (rand() % 255), (unsigned char) (rand() % 255), 255};
     badguys.emplace_back(enemyTex, randPosition(), color);
   }
-    
-    
 
   // Bullets
   const int B = 500;
   Bullet bullets[B];
- 
+  
   
   {
+    InitAudioDevice();
     Sprite ship("assets/fighter.png");
+    Texture2D backgroundImage = LoadTexture("assets/asteroids_background.png");
+    float scale = static_cast<float>(GameConstants::SIZEX) / backgroundImage.width;
+
+// Load sounds
+    Sound backgroundSound = LoadSound("assets/loop.wav");
+    // SetSoundLoop(backgroundSound, true);
+
+    Sound bulletSound = LoadSound("assets/fire.wav");
+    Sound explosionSound = LoadSound("assets/explode.wav");
+
+    PlaySound(backgroundSound);
+
     bool gameover = false;
     while (!WindowShouldClose())
     {
-      
+      if (!IsSoundPlaying(backgroundSound)) {
+        PlaySound(backgroundSound);
+      }
       BeginDrawing();
-        ClearBackground(GRAY);
+        ClearBackground(RAYWHITE);
+        DrawTexture(backgroundImage, 0, 0, WHITE);
+        DrawTexturePro(backgroundImage, 
+                       { 0.0f, 0.0f, static_cast<float>(backgroundImage.width), static_cast<float>(backgroundImage.height) }, 
+                       { 0.0f, 0.0f, static_cast<float>(GameConstants::SIZEX), static_cast<float>(backgroundImage.height * scale) }, 
+                       { 0, 0 }, 
+                       0.0f, 
+                       WHITE);
         if (gameover) {
           DrawText("GAME OVER", GameConstants::SIZEX/3 - 20, GameConstants::SIZEY/2, 40, WHITE);
           DrawText("Press R to Restart", GameConstants::SIZEX/3 - 20, GameConstants::SIZEY/2 + 50, 20, WHITE);
@@ -279,8 +232,16 @@ int main()
           }
         }
 
+
+//TODO: bullet sound not bursting continously, fix it
+        // if (!IsKeyPressed(KEY_SPACE)) {
+        //   if (!IsSoundPlaying(bulletSound))
+        //     PlaySound(bulletSound);
+        // }
+
         // bullet
         if (IsKeyDown(KEY_SPACE) || elapsed) {
+          
           ++elapsed;
           if (elapsed > 4) {
             elapsed = 0;
@@ -302,6 +263,7 @@ int main()
               if (!e.destroyed && CheckCollisionPointCircle(bullets[i].pos, {e.pos.x, e.pos.y}, e.sp.width/2))
               {    ++cnt;
                   e.destroyed = true;
+                  PlaySound(explosionSound);
                   e.explosion.setup(e.pos.x, e.pos.y, e.tint);
                   bullets[i].valid = false;
               }
@@ -314,12 +276,12 @@ int main()
 
       EndDrawing();
     }
+    UnloadTexture(enemyTex);
+  UnloadSound(backgroundSound);
+  UnloadSound(bulletSound);
+  UnloadSound(explosionSound);
   }
-  UnloadTexture(enemyTex);
-  // UnloadTexture(enemyTex[1]);
-  // UnloadTexture(enemyTex[2]);
-  // UnloadTexture(enemyTex[3]);
-  // UnloadTexture(enemyTex[4]);
+  
   CloseWindow();
   return 0;
 }

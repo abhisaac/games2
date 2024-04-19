@@ -1,0 +1,1 @@
+.\build.bat src\%1.cpp; echo %errorlevel% && .\build\out.exe
