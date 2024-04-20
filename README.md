@@ -12,6 +12,13 @@ create two folders `build` and `obj` at project root if not already present
 
 ## Windows
 Launch VS Code from Developer command prompt and press `F5 (Debug)` or `Ctrl+B (Build)`
+or use the build and run command line options e.g.,
+```powershell
+.\run pong
+```
 
 ## Linux
 Launch VS Code in this folder and press `F5 (Debug)` or `Ctrl+B (Build)`
+or use the build and run command line options e.g.,
+```powershell
+./run pong
