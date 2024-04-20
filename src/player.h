@@ -79,8 +79,6 @@ struct Player {
         if (!jump && speedy >= 0.f && (IsKeyPressed(KEY_UP))) {
             pos.y -= 2.f;
             speedy = -260.f;
-            if (speedy < -260.f)
-                speedy = -260.f;
             jump = true;
             PlaySound(jumpSound);
         }

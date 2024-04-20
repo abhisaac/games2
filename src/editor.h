@@ -1,28 +1,41 @@
-
+#pragma once
 #include "raylib.h"
+
 #include <string>
 // #include <cstdio>
 // #include <cstdlib>
-#include <fstream>
+
 #include <cmath>
 #include <set>
 #include <cassert>
-// #include <sstream>
+#include <vector>
 #include <iostream>
 
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
 #include "player.h"
+#include "map.h"
 // #include <string>
 /*TODO
 * Enemies
-* fix jumping/ collision detection
-* disable/enable tools
-* 
 * game pause
 * hot reloading (separate logic vs UI)
 * undo move/resize etc.
 * UUID for objects instead of index in objs
+
+*/
+
+/* KeyMap
+// TODO: move the keymaps into the UI as well
+
+ALT + e -  edit mode
+      d -  show debu info
+      p - show pointer debug info
+      g - show grid
+      r - reset map
+      Ctrl + s - save map
+      del - delete selection
+
 
 */
 enum class mode {
@@ -30,7 +43,7 @@ enum class mode {
     edit
 };
 mode g_mode;
-// const float threshold = 4.f;
+
 bool isApproxEqual(Vector2 a, Vector2 b, float threshold) {
     return (abs(a.x-b.x) < threshold) && (abs(a.y-b.y) < threshold);
 }
@@ -134,99 +147,14 @@ struct ColorPicker {
 };
 
 
-const int screenWidth = 1200;
-const int screenHeight = 800;
-
-// Object pool
-#define SN 200
-Shape* objs[SN] = {0};
-
-int getNextIdx() {
-    int i = 0;
-    while (i<SN && objs[i] != nullptr) {++i;}
-    assert(i < SN);
-    return i;
-}
 
 
-void clearMap(Shape** objs) {
-    for (int i = 0; i < SN; ++i) {
-        if (objs[i]) {
-            delete(objs[i]);
-            objs[i] = nullptr;
-        }
-        
-    }
-}
-char mapfilename[200] = "test.map";
-void loadMap(Shape* objs[]) {
-    //load file to objs
-    std::ifstream ifs(mapfilename); //, "r");
+    bool mapedit = false;
+    Rectangle2 mapfilenamebox {600, 1, 150, 40};
 
-    std::string line;
-    while(std::getline(ifs, line)) {
-
-        char shape[25], data[70];
-        sscanf(line.c_str(), "%s %[^\n]", shape, data );
-
-        if (strcmp(shape, "RECTANGLE") == 0) {
-            Rectangle2 r;
-            Color c;
-            sscanf(data, "%f %f %f %f COLOR %hhd %hhd %hhd %hhd",
-                        &r.x, &r.y, &r.width, &r.height,
-                        &c.r, &c.g, &c.b, &c.a);
-            auto* tmp = new RectShape();
-            tmp->color = c;
-            tmp->bounds = r;
-
-            objs[getNextIdx()] = tmp;
-            
-        } else if (strcmp(shape,"CIRCLE")==0) {
-            Vector2 center;
-            float radius;
-            Color c;
-            sscanf(data, "%f %f %f COLOR %hhd %hhd %hhd %hhd",
-                        &center.x, &center.y, &radius,
-                        &c.r, &c.g, &c.b, &c.a);
-            auto* tmp = new CircleShape();
-            tmp->color = c;
-            tmp->radius = radius;
-            tmp->center = center;
-            tmp->setBounds();
-
-            objs[getNextIdx()] = tmp;
-            
-        }
-    }
-}
-void savemap(char* filename, Shape** objs) {
-
-    FILE* fid=fopen(filename, "w");
-    for (int i = 0;i < SN; ++i){
-        if (objs[i])
-            fprintf(fid, "%s\n", objs[i]->serialize());
-    }
-    
-    fclose(fid);
-}
-
-int main(void)
-{
-    InitAudioDevice();
-    
-    ColorPicker cp;
-    ShapePicker sp;
-
-    InitWindow(screenWidth, screenHeight, "!! Game 1 (editor)");
-    GuiSetStyle(DEFAULT, TEXT_SIZE, 19.f);
-    // GuiSetStyle(DEFAULT, BACKGROUND_COLOR, 0xff0000ff);  
-    SetTargetFPS(60);
-    
-    
-    
-    int s = 0; // stroke counter
-    
-    // avoid multiple key stroke updates with these bools
+    bool drawGrid = false;
+    bool selected = false;
+// avoid multiple key stroke updates with these bools
     bool isundo = false;
     bool isredo = false;
     bool down = false;
@@ -234,13 +162,9 @@ int main(void)
     bool mapeditcontrol = false;
     bool contextMenu = false;
     bool debug = false;
+    bool debug_pointer = false;
     bool selectall = false;
-
-    Rectangle2 hover;
-    bool showhover = false;
-
-    Rectangle2 rect {350, 10, 40, 10};
-    
+        
     Shape* transient = nullptr;
 
     std::set<Shape*> selectTransients;
@@ -250,30 +174,35 @@ int main(void)
     Shape* multiSelectTransient = nullptr;
     Vector2 contextMenuPosition;
     Shape* hoverTransient = nullptr;
-
-    Player p(screenWidth, screenHeight);
     
-    loadMap(objs);
-    
-    bool mapedit = false;
-    Rectangle2 mapfilenamebox {600, 1, 150, 40};
 
-    bool drawGrid = false;
-    bool selected = false;
-    while (!WindowShouldClose())    // Detect window close button or ESC key
-    {
-        BeginDrawing();
-
-            ClearBackground(BLACK);
-            if (IsKeyPressed(KEY_E) && IsKeyDown(KEY_LEFT_ALT)) {
-                g_mode = g_mode == mode::edit ? mode::game : mode::edit;
-            }
+    Rectangle2 hover;
+    bool showhover = false;
+     ColorPicker cp;
+    ShapePicker sp;
+struct Editor {
+    Map m;
+    float screenWidth, screenHeight;
+    Editor (float w, float h) : screenWidth(w), screenHeight(h) {
+        m.load();
+    }
+    bool isEditMode() {
+        return g_mode == mode::edit;
+    }
+    void update() {
+         if (IsKeyPressed(KEY_E) && IsKeyDown(KEY_LEFT_ALT)) {
+            g_mode = g_mode == mode::edit ? mode::game : mode::edit;
+        }
+//EDIT mode
     if (g_mode == mode::edit) {
-            //map name
-            GuiTextBox(mapfilenamebox, mapfilename, 90, mapedit);
-
+             //map name
+        // if (editor.isEditMode()) {
+          GuiTextBox(mapfilenamebox, m.mapfilename, 90, mapedit);
+        // }
+           
             //debug
             if (IsKeyPressed(KEY_D)) debug = !debug;
+            if (IsKeyPressed(KEY_P)) debug_pointer = !debug_pointer;
             
             // grid
             if (IsKeyPressed(KEY_G)) {
@@ -285,29 +214,24 @@ int main(void)
         if (IsKeyUp(KEY_A) || IsKeyUp(KEY_LEFT_CONTROL)) selectall = false;
         if (IsKeyPressed(KEY_A) && IsKeyDown(KEY_LEFT_CONTROL)) {
             selectall = true;
-            for(int i = 0; i < SN; ++i) {
-                if (objs[i]) selectTransients.insert(objs[i]);
-            }
+            for (auto& o : m.objs)
+                selectTransients.insert(o);
         }
+        
 
         // delete
         if (IsKeyPressed(KEY_DELETE)) {
             for(auto&si : selectTransients) {
                 delete si;
-                for (int i = 0; i < SN; ++i) {
-                    if (si == objs[i]) {
-                        objs[i] = nullptr;
-                    }
-                }
+                m.objs.erase(std::remove(m.objs.begin(), m.objs.end(), si), m.objs.end());
             }
             selectTransients.clear();
         }
         //reset
         if (IsKeyPressed(KEY_R)) {
-            p.reset();
-            clearMap(objs);
-            std::cout << mapfilename << std::endl;
-            loadMap(objs);
+            m.clear();
+            std::cout << "Loading map: " << m.mapfilename << std::endl;
+            m.load();
         }
         
         if (!resizeTransient) {
@@ -321,25 +245,26 @@ int main(void)
         if (IsKeyUp(KEY_S) || IsKeyUp(KEY_LEFT_CONTROL)) save = false;
         if (!save && IsKeyDown(KEY_S) && IsKeyDown(KEY_LEFT_CONTROL)) {
         //    TakeScreenshot("tmp.png"); // TODO: Fix png size; edge pixels bleeding out
-            savemap(mapfilename, objs);
+            m.save();
             save = true;
         }   
+
 //TODO: fix undo/redo to work with object pool/getNextIdx
         //redo
-        if (IsKeyUp(KEY_Y) || IsKeyUp(KEY_LEFT_CONTROL)) isredo = false;
-        else if (!isredo && IsKeyDown(KEY_Y) && IsKeyDown(KEY_LEFT_CONTROL)) {
-            isredo = true;
-            if (objs[s])
-                ++s;
-        }
+        // if (IsKeyUp(KEY_Y) || IsKeyUp(KEY_LEFT_CONTROL)) isredo = false;
+        // else if (!isredo && IsKeyDown(KEY_Y) && IsKeyDown(KEY_LEFT_CONTROL)) {
+        //     isredo = true;
+        //     if (m.objs[s])
+        //         ++s;
+        // }
 
-        //undo
-        if (IsKeyUp(KEY_Z) || IsKeyUp(KEY_LEFT_CONTROL)) isundo = false;
-        else if (!isundo && IsKeyDown(KEY_Z) && IsKeyDown(KEY_LEFT_CONTROL)) {
-            isundo = true;
-            --s;
-            if (s<0) s=0;
-        }
+        // //undo
+        // if (IsKeyUp(KEY_Z) || IsKeyUp(KEY_LEFT_CONTROL)) isundo = false;
+        // else if (!isundo && IsKeyDown(KEY_Z) && IsKeyDown(KEY_LEFT_CONTROL)) {
+        //     isundo = true;
+        //     --s;
+        //     if (s<0) s=0;
+        // }
         
         // mouse position
         Vector2 mousePoint = GetMousePosition();
@@ -368,7 +293,7 @@ int main(void)
         }
         
         if (!ishover && sp.current.shape == SHAPE::SELECT) {
-            for (auto& si: objs) {
+            for (auto& si: m.objs) {
                 if (!si) continue;
                 if (si->shape == CIRCLE) {
                     auto* tmp = (CircleShape*)si;
@@ -395,11 +320,11 @@ int main(void)
              if (resizeTransient) {
                 resizeTransient->resize(mousePoint);
              } else if (selectTransients.empty()) {
-                for(int i = 0; i < SN; ++i) {
-                    if (!objs[i]) continue;
+                for(auto i = 0; i < m.objs.size(); ++i) {
+                    if (!m.objs[i]) continue;
 
-                    if (hoverTransient == objs[i] && isResizeDrag(mousePoint, objs[i]->bounds) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-                        resizeTransient = objs[i];
+                    if (hoverTransient == m.objs[i] && isResizeDrag(mousePoint, m.objs[i]->bounds) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+                        resizeTransient = m.objs[i];
                         resizeTransient->resizeInit();
                         break;
                     }
@@ -411,18 +336,18 @@ int main(void)
         if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && sp.current.shape == SELECT) {
             // cp.next();
             contextMenu = true;
-            for(int i = 0; i < SN; ++i) {
-                if (!objs[i]) continue;
-                if (objs[i]->shape == RECTANGLE) {
-                    if(CheckCollisionPointRec(mousePoint, objs[i]->bounds)) {
+            for(auto i = 0; i < m.objs.size(); ++i) {
+                if (!m.objs[i]) continue;
+                if (m.objs[i]->shape == RECTANGLE) {
+                    if(CheckCollisionPointRec(mousePoint, m.objs[i]->bounds)) {
                         contextMenuPosition = mousePoint;
-                        contextTransient = objs[i];
+                        contextTransient = m.objs[i];
                     }
-                } else if (objs[i]->shape == CIRCLE) {
-                    auto* tmp = (CircleShape*)objs[i];
+                } else if (m.objs[i]->shape == CIRCLE) {
+                    auto* tmp = (CircleShape*)m.objs[i];
                     if(CheckCollisionPointCircle(mousePoint, tmp->center, tmp->radius)) {
                         contextMenuPosition = mousePoint;
-                        contextTransient = objs[i];
+                        contextTransient = m.objs[i];
                     }
                 }
             }
@@ -436,11 +361,11 @@ int main(void)
         // shift multi-select
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ) {
             if (IsKeyDown(KEY_LEFT_SHIFT)) {
-                for(int i = 0; i < SN; ++i) if(objs[i] && CheckCollisionPointRec(mousePoint, objs[i]->bounds)) {
-                    if (selectTransients.count(objs[i])) {
-                        selectTransients.erase(objs[i]);
+                for(int i = 0; i < m.objs.size(); ++i) if(m.objs[i] && CheckCollisionPointRec(mousePoint, m.objs[i]->bounds)) {
+                    if (selectTransients.count(m.objs[i])) {
+                        selectTransients.erase(m.objs[i]);
                     } else {
-                        selectTransients.insert(objs[i]);
+                        selectTransients.insert(m.objs[i]);
                     }
                     
                     selected = true;
@@ -509,30 +434,30 @@ int main(void)
                     if (multiSelectTransient) {
                         multiSelectTransient->push(mousePoint);
                         selectTransients.clear();
-                        for (int i= SN-1; i >=0 ;--i) {
-                            if (!objs[i]) continue;
-                            if(CheckCollisionRecs(multiSelectTransient->bounds, objs[i]->bounds)) {
-                                selectTransients.insert(objs[i]);
+                        for (int i= m.objs.size()-1; i >=0 ;--i) {
+                            if (!m.objs[i]) continue;
+                            if(CheckCollisionRecs(multiSelectTransient->bounds, m.objs[i]->bounds)) {
+                                selectTransients.insert(m.objs[i]);
                             }
                         }
                     }
                    
                     if (!resizeTransient && selectTransients.empty() ) {
-                        for (int i= SN-1; i >=0 ;--i) {
-                            if (!objs[i]) continue;
-                            if (objs[i]->intersects(mousePoint)) {
+                        for (int i= m.objs.size()-1; i >=0 ;--i) {
+                            if (!m.objs[i]) continue;
+                            if (m.objs[i]->intersects(mousePoint)) {
                                 if (IsKeyDown(KEY_LEFT_CONTROL)) {
                                     //copy
-                                    if (copyTransients.count(objs[i]) == 0) {
-                                        auto newNode = objs[i]->clone();
+                                    if (copyTransients.count(m.objs[i]) == 0) {
+                                        auto newNode = m.objs[i]->clone();
                                         copyTransients.insert(newNode);
-                                        objs[getNextIdx()] = newNode;
-                                        selectTransients.insert(objs[i]);
+                                        m.objs.push_back(newNode);
+                                        selectTransients.insert(m.objs[i]);
                                     }
                                     
                                 } else {
                                     //move
-                                    selectTransients.insert(objs[i]);
+                                    selectTransients.insert(m.objs[i]);
                                 }
                             }
                         }
@@ -549,7 +474,7 @@ int main(void)
                                 for (auto&si : selectTransients) {
                                     if (copyTransients.count(si) == 0) {
                                         auto newNode = si->clone();
-                                        objs[getNextIdx()] = newNode;
+                                        m.objs.push_back(newNode);
                                         copyTransients.insert(si);
                                     }
                                 }
@@ -607,7 +532,7 @@ int main(void)
                 // }
 
                 //commit
-                objs[getNextIdx()] = transient;
+                m.objs.push_back(transient);
                 transient = nullptr;
             }
             down = false;
@@ -621,50 +546,16 @@ int main(void)
 
         // Clear
         if (GuiButton({350, 0, 80, 40}, "#0#Clear")) { 
-            //clear
-            clearMap(objs);
+            
+            m.clear();
         }
 
         // Load
         if (GuiButton({350+80, 0, 80, 40}, "#5#Load")) { 
-            //clear
-            clearMap(objs);
-            // load
-            loadMap(objs);
+            m.clear();
+            m.load();
         }
-    }
-        //----------------------------------------------------------------------------------
-        
-
-            if (!mapedit) {
-                p.update();
-                bool collide = false;
-                float newy = 0.f;
-                for (int i  = 0;i < SN; ++i) {
-                    if (objs[i]) {
-                        if (objs[i]->shape == RECTANGLE) {
-                            RectShape* tmp = (RectShape*)objs[i];
-                            if (CheckCollisionPointRec({p.pos.x, p.pos.y + p.heroRec.height}, tmp->bounds)) {
-                                newy = tmp->bounds.y-p.heroRec.height;
-                                collide = true;
-                                break;
-                            }
-                        } else if (objs[i]->shape == CIRCLE) {
-                            CircleShape* tmp = (CircleShape*)objs[i];
-                            if (CheckCollisionPointCircle({p.pos.x, p.pos.y + p.heroRec.height}, tmp->center, tmp->radius)) {
-                                newy = tmp->bounds.y-p.heroRec.height;
-                                collide = true;
-                                break;
-                            }
-                        }
-                        
-                    }
-                }
-
-            // TODO: this API can be better
-                p.updateSpeed(collide, newy);
-            }
-            // DrawLineEx({0, 30.f}, {screenWidth, 30.f}, 0.5, GRAY);
+   
             if (drawGrid) {
                 for (int i = 0; i < screenHeight; i+=40)
                     DrawLineEx({0, (float)i}, {screenWidth, (float)i}, 1., GRAY);
@@ -675,7 +566,7 @@ int main(void)
                 // debug shape counter
                 char ss[3];
                 int i = 0;
-                for (auto&si:objs) if (si) ++i;
+                for (auto&si: m.objs) if (si) ++i;
                 sprintf(ss,"%d", i);
                 DrawText(ss, 270, 0, 50, RED);
             }
@@ -695,25 +586,14 @@ int main(void)
                 DrawRectangleLinesEx(hover, 5.f, GRAY);  
                 showhover = false;
             }
-
-            for(int i = 0; i < SN; ++i) {
-                if (!objs[i]) continue;
-                objs[i]->draw();
-                if (debug) {
-                    // char ss[4];
-                    // sprintf(ss,"%d", i);
-                    char ss[30];
-                    sprintf(ss,"%d - 0x%p", i, objs[i]);
-                    DrawText(ss, objs[i]->bounds.x, objs[i]->bounds.y-30.f, 25, ORANGE);
-                }
-            }
+            
             if (transient)   transient->draw();
             
             for (auto&si :selectTransients) if (si) DrawRectangleLinesEx(si->bounds, 3.f, GOLD);
             if (resizeTransient) DrawRectangleLinesEx(resizeTransient->bounds, 3.f, GOLD);
             else if (multiSelectTransient) DrawRectangleLinesEx(multiSelectTransient->bounds, 3.f, GOLD);
             else if (hoverTransient)  DrawRectangleLinesEx(hoverTransient->bounds, 2.f, WHITE);
-            p.draw();
+           
             if (contextMenu) {
                 if (contextTransient) {
                     auto x = contextMenuPosition.x; //+10;
@@ -725,10 +605,28 @@ int main(void)
                     }
                 }
             }
-        EndDrawing();
-        //----------------------------------------------------------------------------------
+    }
+     //----------------------------------------------------------------------------------
+        // game
+            for(int i = 0; i < m.objs.size(); ++i) {
+                if (!m.objs[i]) continue;
+                m.objs[i]->draw();
+                if (debug && g_mode == mode::edit) {
+                    char ss[30];
+                    if (debug_pointer)
+                        sprintf(ss,"%d - 0x%p", i, m.objs[i]);
+                    else
+                        sprintf(ss,"%d", i);
+                    DrawText(ss, m.objs[i]->bounds.x, m.objs[i]->bounds.y-30.f, 25, ORANGE);
+                }
+            }
+    
+       
+      
+
+    }
+    void draw() {
+
     }
 
-    CloseWindow();
-    return 0;
-}
+};
