@@ -1,10 +1,12 @@
 
 #include "raylib.h"
-#include "editor.h"
-
-
 const int screenWidth = 1200;
 const int screenHeight = 800;
+#include "editor.h"
+#include "player.h"
+
+
+
 int main(void)
 {
     InitAudioDevice();

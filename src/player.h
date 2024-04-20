@@ -1,6 +1,42 @@
 #pragma once
 #include "raylib.h"
 #include "shapes.h"
+
+enum class Dir {
+    right,
+    left
+};
+
+
+struct Bullet {
+  Vector2 pos;
+  bool valid;
+  float size = 5.f; 
+  Dir dir;
+  float runningTime = 0.f;
+  Bullet() {
+    
+    valid = false;
+  }
+  void draw() {
+    if (valid)
+      DrawCircle(pos.x, pos.y, size, ORANGE);
+  }
+  void update(float dT) {
+    if (!valid) return;
+    if (dir == Dir::right)
+        pos.x += 400.f*dT;
+    else
+        pos.x -= 400.f*dT;
+    if (pos.x > screenWidth || pos.x < 0.f) valid = false;
+
+  }
+};
+
+std::vector<Bullet> bullets(100);
+unsigned int b_idx = 0;
+
+
 struct Player {
     Color color;
     Rectangle2 pos;
@@ -11,11 +47,12 @@ struct Player {
     float screenHeight;
     
     Sound jumpSound;
+    Dir dir;
     
     float gravity = 300.f;
     float speedy = 0.0f;
     float speedx = 1.f;
-    bool jump;
+    bool jump = false;
 
     int frame = 0;
     const int SPRITE_FRAMES = 5;
@@ -28,7 +65,7 @@ struct Player {
          gravity = 300.f;
          speedy = 0.0f;
          speedx = 1.f;
-         jump = true;
+         jump = false;
         pos.x = 130;
         pos.y = 130;
     }
@@ -49,6 +86,7 @@ struct Player {
         dT = GetFrameTime();
         
         if (IsKeyDown(KEY_RIGHT)) {
+            dir = Dir::right;
             speedx = 306.f;
             if (heroRec.width < 0) heroRec.width = -heroRec.width;
             runningTime += dT;
@@ -63,6 +101,7 @@ struct Player {
             }
         } 
         if (IsKeyDown(KEY_LEFT)) {
+            dir = Dir::left;
             speedx = -306.f;
             if (heroRec.width > 0) heroRec.width = -heroRec.width;
             runningTime += dT;
@@ -82,6 +121,21 @@ struct Player {
             jump = true;
             PlaySound(jumpSound);
         }
+
+//Fire bullets
+        if (IsKeyPressed(KEY_SPACE)) {
+            if (b_idx > bullets.size()-1) b_idx = 0;
+            bullets[b_idx].valid = true;
+            bullets[b_idx].dir = dir;
+            bullets[b_idx].pos.x = pos.x;
+            if (dir == Dir::right)
+                bullets[b_idx].pos.x += pos.width;
+           
+            bullets[b_idx].pos.y = pos.y + heroRec.height/2.f;
+            b_idx++;
+        }
+        
+        for (auto& b : bullets) { b.update(dT); b.draw(); }
         
         
         pos.x += speedx * dT;

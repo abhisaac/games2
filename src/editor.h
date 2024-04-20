@@ -13,7 +13,7 @@
 
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
-#include "player.h"
+
 #include "map.h"
 // #include <string>
 /*TODO
