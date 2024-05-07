@@ -1,27 +1,21 @@
 
 #include "raylib.h"
-#include <vector>
-int main2(){
-  InitWindow(800, 450, "raylib [core] example - basic window");
+#include <unordered_set>
 
-  int x = 190; //, y = 200;
-
-  while (!WindowShouldClose()){
-    if (IsKeyDown(KEY_LEFT)) x-=.1f;
-    if (IsKeyDown(KEY_RIGHT)) x+=.1f;
-    BeginDrawing();
-    ClearBackground(RAYWHITE);
-    DrawText("Congrats! You created your first window!", x, 200, 20, RED);
-    EndDrawing();
-  }
-
-  CloseWindow();
-  return 0;
+float abs2(float x) {
+    return x > 0 ? x : -x;
 }
+typedef struct MyVector2 {
+    float x;                // Vector x component
+    float y;                // Vector y component
+    bool end;
+    bool valid;
+    bool start;
+    bool operator==(const MyVector2& other) const {
+        return abs2(x - other.x) < 5 && abs2(y - other.y) < 5;
+    }
+} MyVector2;
 
-//------------------------------------------------------------------------------------
-// Program main entry point
-//------------------------------------------------------------------------------------
 int main(void)
 {
     // Initialization
@@ -29,53 +23,64 @@ int main(void)
     const int screenWidth = 800;
     const int screenHeight = 450;
 
-    InitWindow(screenWidth, screenHeight, "!! Paint");
+    bool grid[screenWidth][screenHeight];
 
-    Vector2 ballPosition = { (float)screenWidth/2, (float)screenHeight/2 };
-
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
-    //--------------------------------------------------------------------------------------
-    std::vector<Vector2> pos;
-    // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
-    {
-        // Update
-        //----------------------------------------------------------------------------------
-        if (IsKeyDown(KEY_RIGHT)) ballPosition.x += 2.0f;
-        if (IsKeyDown(KEY_LEFT)) ballPosition.x -= 2.0f;
-        if (IsKeyDown(KEY_UP)) ballPosition.y -= 2.0f;
-        if (IsKeyDown(KEY_DOWN)) ballPosition.y += 2.0f;
-        //----------------------------------------------------------------------------------
-
-        // Draw
-        //----------------------------------------------------------------------------------
-        BeginDrawing();
-
-            ClearBackground(RAYWHITE);
-
-            // DrawText("move the ball with arrow keys", 10, 10, 20, DARKGRAY);
-            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) pos.emplace_back(GetMousePosition());
-            if (IsMouseButtonUp(MOUSE_BUTTON_LEFT)) pos.clear();
-            bool first = true;
-            Vector2 last;
-
-            for(auto&p : pos) {
-              if (first){first = !first; last = p;continue;}
-              
-              DrawLineBezier(last, p, 3, MAROON);
-              last = p;
-              // DrawCircleV(p, 3, MAROON);
-            }
-              
-
-        EndDrawing();
-        //----------------------------------------------------------------------------------
+    for (int i = 0; i < screenWidth; ++i) {
+      for (int j = 0; j < screenHeight; ++j) {
+        grid[i][j] = false;
+      }
     }
 
-    // De-Initialization
-    //--------------------------------------------------------------------------------------
+    InitWindow(screenWidth, screenHeight, "!! Paint");
+    float eraserSize = 10.0, penSize = 2.0;
+    SetTargetFPS(60);  
+
+    while (!WindowShouldClose())    // Detect window close button or ESC key
+    {
+           
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+               if (auto dt = GetMouseWheelMove()){
+                penSize += dt;
+              }
+              auto [x,y] = GetMousePosition();
+              if (x < screenWidth && y < screenHeight && x > -1 && y > -1)
+                grid[(int)x][(int)y] = true;
+            } else if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+              if (auto dt = GetMouseWheelMove()){
+                eraserSize += dt;
+              }
+              auto [x,y] = GetMousePosition();
+              for (auto i = -eraserSize; i  < eraserSize ; ++i) {
+                for (auto j = -eraserSize; j< eraserSize; ++j) {
+                  int x2 = (int)x + i;
+                  int y2 = (int)y + j;
+                  if (x2 < 0) x2 = 0;
+                  if (y2 < 0) y2 = 0;
+                  if (x2 > (screenWidth-1)) x2 = screenWidth-1;
+                  if (y2 > (screenHeight-1)) y2 = screenHeight-1;
+                  grid[x2][y2] = false;
+                }
+              }
+              
+              DrawCircle(x, y, eraserSize , GRAY);
+            }
+            else if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
+                memset(grid, 0, screenHeight*screenWidth*sizeof(bool));
+            }
+
+             BeginDrawing();
+
+            ClearBackground(BLACK);
+            for (int i = 0; i < screenWidth; ++i) {
+              for (int j = 0; j < screenHeight; ++j) {
+                if (grid[i][j])
+                  DrawCircle(i, j, penSize, SKYBLUE);
+              }
+            }
+            EndDrawing();
+        //----------------------------------------------------------------------------------
+    }
     CloseWindow();        // Close window and OpenGL context
-    //--------------------------------------------------------------------------------------
 
     return 0;
 }

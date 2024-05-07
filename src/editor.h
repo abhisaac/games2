@@ -1,29 +1,5 @@
 #pragma once
-#include "raylib.h"
 
-#include <string>
-// #include <cstdio>
-// #include <cstdlib>
-
-#include <cmath>
-#include <set>
-#include <cassert>
-#include <vector>
-#include <iostream>
-
-#define RAYGUI_IMPLEMENTATION
-#include "raygui.h"
-
-#include "map.h"
-// #include <string>
-/*TODO
-* Enemies
-* game pause
-* hot reloading (separate logic vs UI)
-* undo move/resize etc.
-* UUID for objects instead of index in objs
-
-*/
 
 /* KeyMap
 // TODO: move the keymaps into the UI as well
@@ -35,9 +11,28 @@ ALT + e -  edit mode
       r - reset map
       Ctrl + s - save map
       del - delete selection
-
-
 */
+#include "raylib.h"
+#include <string>
+#include <cmath>
+#include <set>
+#include <cassert>
+#include <vector>
+#include <iostream>
+
+#define RAYGUI_IMPLEMENTATION
+#include "raygui.h"
+#include "map.h"
+
+
+/*TODO
+* Enemies
+* game pause
+* hot reloading (separate logic vs UI)
+* undo move/resize etc.
+* UUID for objects instead of index in objs
+*/
+
 enum class mode {
     game,
     edit
@@ -611,6 +606,8 @@ struct Editor {
             for(int i = 0; i < m.objs.size(); ++i) {
                 if (!m.objs[i]) continue;
                 m.objs[i]->draw();
+
+                // debug code
                 if (debug && g_mode == mode::edit) {
                     char ss[30];
                     if (debug_pointer)
@@ -620,13 +617,6 @@ struct Editor {
                     DrawText(ss, m.objs[i]->bounds.x, m.objs[i]->bounds.y-30.f, 25, ORANGE);
                 }
             }
-    
-       
-      
-
-    }
-    void draw() {
-
     }
 
 };
