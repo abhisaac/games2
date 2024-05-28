@@ -1,5 +1,7 @@
 #include "raylib.h"
 #include <vector>
+
+// Game Constants
 const int W = 800;
 const int H = 600;
 const int offset = 20;
@@ -58,15 +60,18 @@ int main(){
   InitAudioDevice();
     
 // Load sounds
-  Sound snd = LoadSound("assets/fire.wav");
+  Sound snd = LoadSound("assets/breakout_collision.ogg");
   while (!WindowShouldClose()){
     float dt = GetFrameTime();
     BeginDrawing();
     ClearBackground(BLACK);
+    
     char s[14];
     sprintf(s, "SCORE: %lld", score);
     DrawText(s, offset + 10, offset + 10, 20, WHITE); 
+    
     DrawRectangleLines(offset, offset, W-2*offset, H-2*offset, GRAY);
+
     if (IsKeyDown(KEY_RIGHT)) {
         p.pos.x += 200*dt;
         if (p.pos.x > W-offset-70) p.pos.x -= 200*dt;
@@ -100,8 +105,8 @@ int main(){
     b.draw();
     EndDrawing();
   }
-UnloadSound(snd);
-  CloseWindow();
-  return 0;
+    UnloadSound(snd);
+    CloseWindow();
+    return 0;
 }
 
