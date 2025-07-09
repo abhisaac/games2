@@ -120,21 +120,32 @@ struct Game {
     void readWords() {
         words = loadFile("assets/dict.txt");
     }
+    bool canAddTarget(std::string w) {
+        return start_words.count(w[0]) == 0;
+    }
     void addTarget() {
        static std::random_device rd; // source of randomness
        static std::mt19937 rng(rd()); // seed random number engine
        static std::uniform_int_distribution<std::size_t> uid(0, words.size()-1);
 
-       std::size_t sample = uid(rng);
+       std::size_t sample;
+       std::string w;
+       if (start_words.size() >= 26) return;
+        do {
+            sample = uid(rng);
+            w = words[sample];
+            
+        } while(!canAddTarget(w));
+        start_words.insert(w[0]);
         
         float posx = rand()%(W-120);
-        targets.emplace_back(words[sample], posx);
+        targets.emplace_back(w, posx);
     }
     void reset() {
         addTarget();
         b_pos = 0;
         score = 0;
-        level =1;
+        level = 0;
     }
     
     void processInput() {
@@ -172,6 +183,7 @@ struct Game {
                 
                     //clear target
                     targets.erase(begin(targets) + xi);
+                    start_words.erase(w[0]);
                     xi = -1;
                 } 
             } else {
@@ -206,7 +218,7 @@ struct Game {
         explosion.draw();
         
     }
-    
+    std::set<char> start_words;
     std::vector<std::string> words;
     std::vector<Target> targets;
     // std::vector<char> firstwords;
@@ -257,7 +269,9 @@ int main(){
         if (IsKeyDown(KEY_S)) {
             g.gameOver = false;
             g.targets.clear();
+            g.start_words.clear();
             g.reset();
+            g.xi = -1;
             // C = 0;
         } else if (IsKeyDown(KEY_ESCAPE)) {
             break;
